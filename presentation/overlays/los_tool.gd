@@ -42,7 +42,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_mesh.clear_surfaces()
-	if runner == null or runner.world == null or not Input.is_key_pressed(KEY_L) or not controller.enabled:
+	if runner == null or runner.world == null or not KeyBindings.is_held("los") or not controller.enabled:
 		_origin = Vector3.INF
 		return
 	var gp: Variant = controller.cam.ground_point(controller.get_viewport().get_mouse_position())

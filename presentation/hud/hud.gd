@@ -66,6 +66,7 @@ func _build_menu() -> void:
 	_menu.add_child(box)
 	for pair: Array in [["Resume", func() -> void: toggle_menu()],
 			["Save game", func() -> void: banner("Game saved: " + ProjectSettings.globalize_path(scene.save_game()))],
+			["Settings", func() -> void: add_child(SettingsPanel.new())],
 			["Save replay", func() -> void: banner("Replay saved: " + ProjectSettings.globalize_path(scene.save_replay()))],
 			["Leave match", func() -> void: scene.leave()]]:
 		var b: Button = Button.new()

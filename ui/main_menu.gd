@@ -123,6 +123,7 @@ func _ready() -> void:
 		GraphicsSettings.save_settings()
 		ts.text = "Tilt-shift: " + ("on" if GraphicsSettings.tilt_shift else "off"))
 	ts.text = "Tilt-shift: " + ("on" if GraphicsSettings.tilt_shift else "off")
+	_button(_main, "Settings", func() -> void: add_child(SettingsPanel.new()))
 	_button(_main, "Quit", func() -> void: get_tree().quit())
 
 	_lobby_box = VBoxContainer.new()

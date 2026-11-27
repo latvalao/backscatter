@@ -12,6 +12,10 @@ static var tilt_shift: bool = true
 static var grain: bool = true
 static var season: String = "autumn"   # autumn | winter
 static var time_of_day: String = "auto" # auto | golden_afternoon | overcast | dawn_mist | dusk | night | storm
+## Volumes 0..1 for the Master / Effects / Ambient / Radio buses.
+static var volumes: Dictionary = {"Master": 0.8, "Effects": 0.9, "Ambient": 0.6, "Radio": 0.8}
+## Rebound keys: action -> keycode (see KeyBindings.ACTIONS).
+static var keys: Dictionary = {}
 static var _loaded: bool = false
 
 
@@ -27,6 +31,12 @@ static func load_settings() -> void:
 	grain = bool(cf.get_value("gfx", "grain", grain))
 	season = str(cf.get_value("gfx", "season", season))
 	time_of_day = str(cf.get_value("gfx", "time_of_day", time_of_day))
+	var vol: Variant = cf.get_value("audio", "volumes", volumes)
+	if typeof(vol) == TYPE_DICTIONARY:
+		volumes = vol
+	var k: Variant = cf.get_value("input", "keys", keys)
+	if typeof(k) == TYPE_DICTIONARY:
+		keys = k
 
 
 static func save_settings() -> void:
@@ -36,7 +46,22 @@ static func save_settings() -> void:
 	cf.set_value("gfx", "grain", grain)
 	cf.set_value("gfx", "season", season)
 	cf.set_value("gfx", "time_of_day", time_of_day)
+	cf.set_value("audio", "volumes", volumes)
+	cf.set_value("input", "keys", keys)
 	cf.save(PATH)
+
+
+## Creates the audio buses if needed and applies the saved volumes.
+static func apply_audio() -> void:
+	for bus: String in ["Effects", "Ambient", "Radio"]:
+		if AudioServer.get_bus_index(bus) < 0:
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(AudioServer.bus_count - 1, bus)
+			AudioServer.set_bus_send(AudioServer.bus_count - 1, "Master")
+	for bus2: String in volumes.keys():
+		var i: int = AudioServer.get_bus_index(bus2)
+		if i >= 0:
+			AudioServer.set_bus_volume_db(i, linear_to_db(maxf(0.0001, float(volumes[bus2]))))
 
 
 static func cycle_quality() -> void:

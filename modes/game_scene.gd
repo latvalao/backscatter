@@ -200,6 +200,12 @@ func _ready() -> void:
 	los.terrain = terrain
 	add_child(los)
 
+	var audio: AudioDirector = AudioDirector.new()
+	audio.runner = runner
+	audio.views = views
+	audio.controller = controller
+	add_child(audio)
+
 	var geiger: Geiger = Geiger.new()
 	geiger.runner = runner
 	geiger.controller = controller
@@ -303,7 +309,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var k: InputEventKey = event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	match k.keycode:
+	match KeyBindings.translate(k.keycode):
 		KEY_P, KEY_PAUSE:
 			set_speed(0 if runner.speed > 0 else 1)
 		KEY_EQUAL, KEY_KP_ADD:

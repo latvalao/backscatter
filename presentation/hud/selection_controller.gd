@@ -5,6 +5,9 @@
 class_name SelectionController
 extends Control
 
+## Emitted with the unit ids of every order sent (radio squelch, etc.).
+signal order_sent(ids: PackedInt32Array)
+
 enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE, SUPPORT, SEIZE, OVERWATCH }
 
 const CLICK_PICK_PX: float = 24.0
@@ -76,6 +79,9 @@ func local_player() -> int:
 func submit(cmd: SimCommand) -> void:
 	if enabled and lockstep != null:
 		lockstep.submit(cmd)
+		var uc: UnitCommand = cmd as UnitCommand
+		if uc != null:
+			order_sent.emit(uc.unit_ids)
 
 
 func _process(_delta: float) -> void:
@@ -194,7 +200,7 @@ func _right_drag(a: Vector2, b: Vector2, shift: bool) -> void:
 
 
 func _key(k: InputEventKey) -> void:
-	var code: Key = k.keycode
+	var code: Key = KeyBindings.translate(k.keycode)
 	if code >= KEY_1 and code <= KEY_9:
 		var g: int = code - KEY_0
 		if k.ctrl_pressed:
