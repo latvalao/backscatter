@@ -24,8 +24,8 @@ static func for_faction(f: String) -> Doctrine:
 	d.faction = f
 	match f:
 		"nc":
-			d.build_order = ["barracks", "motor_pool", "supply_depot", "repair_yard", "artillery_park", "field_hospital"]
-			d.weights = {"mbt": 2, "ifv": 3, "infantry": 4, "at_infantry": 3, "scout": 1, "artillery": 1, "indirect": 1}
+			d.build_order = ["barracks", "motor_pool", "supply_depot", "repair_yard", "artillery_park", "field_hospital", "helipad"]
+			d.weights = {"mbt": 2, "ifv": 3, "infantry": 4, "at_infantry": 3, "scout": 1, "artillery": 1, "indirect": 1, "attack_heli": 1}
 			d.recon_first = true
 			d.use_drones = true
 			d.safe_routing = true
@@ -33,8 +33,8 @@ static func for_faction(f: String) -> Doctrine:
 			d.attack_ratio = 1300
 			d.min_attack_size = 8
 		"ec":
-			d.build_order = ["barracks", "motor_pool", "artillery_park", "supply_depot", "decon_point", "repair_yard"]
-			d.weights = {"mbt": 4, "ifv": 3, "infantry": 4, "at_infantry": 2, "scout": 1, "artillery": 2, "indirect": 2, "ew": 1, "air_defence": 1, "support": 1}
+			d.build_order = ["barracks", "motor_pool", "artillery_park", "supply_depot", "decon_point", "repair_yard", "helipad"]
+			d.weights = {"mbt": 4, "ifv": 3, "infantry": 4, "at_infantry": 2, "scout": 1, "artillery": 2, "indirect": 2, "ew": 1, "air_defence": 1, "support": 1, "attack_heli": 1}
 			d.barrage = true
 			d.use_ew = true
 			d.attack_ratio = 1000

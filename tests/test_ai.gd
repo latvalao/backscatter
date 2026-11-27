@@ -69,9 +69,11 @@ func test_m6_acceptance_ai_counter_battery() -> void:
 	assert_true(hq > 0 and spgs.size() == 2)
 
 
+## Limit 14500 ticks: since Phase 2 the passive side's idle infantry digs in,
+## so breaking it takes longer than before (won at ~13500).
 func test_slow_normal_ai_beats_passive_player() -> void:
 	var w: SimWorld = _world(_settings(31, 200, CommanderAi.NORMAL, -1, false))
-	var r: Dictionary = _play(w, 12000)
+	var r: Dictionary = _play(w, 14500)
 	print("    normal vs passive: %s" % str(r))
 	assert_eq(r["winner"], 0, "Normal AI destroyed the passive side's HQ")
 

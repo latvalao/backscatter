@@ -8,6 +8,7 @@ const WEAPON_DIR: String = "res://data/weapons"
 const UNIT_DIR: String = "res://data/units"
 const BUILDING_DIR: String = "res://data/buildings"
 const RULES_DIR: String = "res://data/rules"
+const DOCTRINE_DIR: String = "res://data/doctrine"
 
 static var _cached: DefDb = null
 
@@ -25,6 +26,12 @@ static func load_default() -> DefDb:
 					var rules: Dictionary = d
 					for k: String in rules.keys():
 						_cached.rules[k] = roundi(float(rules[k]))
+		var sup: Variant = JSON.parse_string(FileAccess.get_file_as_string(DOCTRINE_DIR.path_join("support.json")))
+		if typeof(sup) == TYPE_DICTIONARY:
+			_cached.support = _support(sup)
+		var bgs: Variant = JSON.parse_string(FileAccess.get_file_as_string(DOCTRINE_DIR.path_join("battlegroups.json")))
+		if typeof(bgs) == TYPE_DICTIONARY:
+			_cached.battlegroups = bgs
 	return _cached
 
 
@@ -164,9 +171,11 @@ static func _unit(d: Dictionary, db: DefDb) -> UnitStats:
 	u.altitude_mm = _scaled(d, "altitude_m", 1000)
 	u.battery_ticks = _scaled(d, "battery_s", SimConst.TICKS_PER_SECOND)
 	if u.is_air:
-		u.eye_height_mm = u.altitude_mm
-		u.target_height_mm = u.altitude_mm
-		u.fuel_capacity = 0
+		# transform z already includes the flight altitude
+		u.eye_height_mm = 1500
+		u.target_height_mm = 1500
+		if u.battery_ticks > 0:
+			u.fuel_capacity = 0  # drones run on batteries
 	_emitter(u, d)
 	return u
 
@@ -222,3 +231,21 @@ static func _structure(d: Dictionary) -> UnitStats:
 	u.mobility_class = TerrainTable.TRACKED
 	_emitter(u, d)
 	return u
+
+
+## Support specs -> integer sim units (ticks, mm); "name" and "weapon" stay strings.
+static func _support(d: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	out["jam_delay_ticks"] = roundi(float(d.get("jam_delay_s", 20)) * SimConst.TICKS_PER_SECOND)
+	for k: String in DefDb.SUPPORT_KINDS:
+		if not d.has(k):
+			continue
+		var e: Dictionary = d[k]
+		out[k] = {
+			"name": str(e.get("name", k)), "weapon": str(e.get("weapon", "")),
+			"cost": int(e.get("cost", 0)), "mp": int(e.get("mp", 0)), "uses": int(e.get("uses", 1)),
+			"delay_ticks": roundi(float(e.get("delay_s", 20)) * SimConst.TICKS_PER_SECOND),
+			"spacing_ticks": maxi(1, roundi(float(e.get("spacing_s", 0.5)) * SimConst.TICKS_PER_SECOND)),
+			"dispersion_mm": roundi(float(e.get("dispersion_m", 50)) * 1000.0),
+			"rounds": int(e.get("rounds", 1)), "squads": int(e.get("squads", 2)), "observer": bool(e.get("observer", false))}
+	return out

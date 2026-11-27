@@ -80,6 +80,8 @@ func rebuild() -> void:
 			return
 		_title.text = "%s — produce" % bd.display_name
 		for u: UnitStats in options:
+			if not w.defs.allowed(u.id, u.faction, w.players.battlegroup[me]):
+				continue
 			var def_id: String = u.id
 			_add("%s  %d/%d" % [u.display_name, u.cost_supply, u.cost_manpower], func() -> void:
 				controller.submit(ProduceCommand.new(b, def_id, 1)))
@@ -107,7 +109,7 @@ func rebuild() -> void:
 	if operator > 0:
 		_title.text = "Recon / Build" if not defs.is_empty() else "Recon"
 		for dd: UnitStats in w.defs.units:
-			if dd.is_air and dd.faction == w.players.faction[me]:
+			if dd.is_air and dd.battery_ticks > 0 and dd.faction == w.players.faction[me]:
 				var did: String = dd.id
 				var op_ids: PackedInt32Array = PackedInt32Array([operator])
 				_add("Launch %s  %d" % [dd.display_name, dd.cost_supply], func() -> void:

@@ -19,8 +19,8 @@ var marauders: bool = false
 var symmetric: bool = true
 
 
-func add_player(p_name: String, team: int, faction: String, ai: bool, difficulty: int = 1) -> int:
-	players.append({"name": p_name, "team": team, "faction": faction, "ai": ai, "difficulty": difficulty})
+func add_player(p_name: String, team: int, faction: String, ai: bool, difficulty: int = 1, battlegroup: int = 0) -> int:
+	players.append({"name": p_name, "team": team, "faction": faction, "ai": ai, "difficulty": difficulty, "battlegroup": battlegroup})
 	return players.size() - 1
 
 

@@ -1,0 +1,7 @@
+{
+	"_doc": "Off-map support (docs/FEATURES.md 3.2). Calling it is a radio transmission from the caller (enemy direction finding can fix it); a jammed caller adds jam_delay_s. Costs in SUPPLY / MANPOWER, uses per match.",
+	"airstrike": {"name": "Airstrike", "cost": 300, "mp": 0, "uses": 3, "delay_s": 18, "observer": true, "rounds": 2, "spacing_s": 0.4, "dispersion_m": 25, "weapon": "airstrike_bomb"},
+	"artillery": {"name": "Heavy artillery battalion", "cost": 250, "mp": 0, "uses": 4, "delay_s": 25, "observer": false, "rounds": 12, "spacing_s": 0.6, "dispersion_m": 80, "weapon": "offmap_152"},
+	"paradrop": {"name": "Paradrop", "cost": 220, "mp": 16, "uses": 2, "delay_s": 30, "observer": false, "squads": 2},
+	"jam_delay_s": 20
+}

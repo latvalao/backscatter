@@ -123,6 +123,14 @@ static func build(id: String, faction: String, role: String, mobility: String) -
 			return truck(id, row, {"L": 8.0, "W": 2.5, "axles": 3, "body": "radar", "cab": "flat"})
 		"mr_technical":
 			return truck(id, row, {"L": 5.2, "W": 1.9, "axles": 2, "body": "pickup", "cab": "pickup", "rust": 0.9})
+		"nc_heli_transport":
+			return heli(id, row, {"L": 15.0, "body_w": 2.4, "body_h": 2.0, "rotor": 8.2, "wheels": true, "door": true})
+		"nc_heli_attack":
+			return heli(id, row, {"L": 14.5, "body_w": 1.3, "body_h": 1.9, "rotor": 7.3, "wheels": true, "tandem": true, "pods": true, "atgm": true, "mast_sight": true})
+		"ec_heli_transport":
+			return heli(id, row, {"L": 17.5, "body_w": 2.6, "body_h": 2.4, "rotor": 10.5, "wheels": true, "door": true, "pods": true})
+		"ec_heli_attack":
+			return heli(id, row, {"L": 17.0, "body_w": 1.9, "body_h": 2.1, "rotor": 8.6, "wheels": true, "tandem": true, "pods": true, "atgm": true, "wings": true})
 		"nc_uav_quad":
 			return quad_drone(id, row)
 		"nc_uav_fixed":
@@ -391,6 +399,66 @@ static func truck(id: String, row: int, p: Dictionary) -> Model:
 
 # ---------------------------------------------------------------- air
 
+static func heli(id: String, row: int, p: Dictionary) -> Model:
+	var md: Model = Model.new()
+	md.id = id
+	var h: ForgeMesh = md.part("hull", row)
+	var L: float = p["L"]
+	var bw: float = p["body_w"]
+	var bh: float = p["body_h"]
+	var y0: float = 0.9
+	var nose: float = -L * 0.5
+	var body_len: float = L * 0.55
+	# fuselage
+	h.box(Vector3(0, y0, nose + body_len * 0.5), Vector3(bw, bh, body_len), CAMO, 0.25, Vector2(0.85, 0.9), Vector2(0, 0.05), Vector2(0.9, 0.95))
+	if p.get("tandem", false):
+		h.box(Vector3(0, y0 + bh * 0.75, nose + body_len * 0.28), Vector3(bw * 0.8, bh * 0.5, body_len * 0.38), GLASS, 0.12, Vector2(0.7, 0.8), Vector2(0, 0.1))
+	else:
+		h.box(Vector3(0, y0 + bh * 0.4, nose + 0.2), Vector3(bw * 0.9, bh * 0.55, 1.0), GLASS, 0.15, Vector2(0.85, 0.6), Vector2(0, 0.2))
+	h.blob(Vector3(0, y0 + bh * 0.45, nose + 0.4), Vector3(bw * 0.48, bh * 0.45, 0.9), 8, 4, CAMO)
+	# engine housing + mast
+	h.box(Vector3(0, y0 + bh, nose + body_len * 0.55), Vector3(bw * 0.75, bh * 0.35, body_len * 0.45), CAMO_DARK, 0.12, Vector2(0.8, 0.85))
+	h.cyl(Vector3(0, y0 + bh * 1.3, nose + body_len * 0.55), Vector3(0, y0 + bh * 1.62, nose + body_len * 0.55), 0.2, 0.15, 6, METAL)
+	if p.get("mast_sight", false):
+		h.blob(Vector3(0, y0 + bh * 1.78, nose + body_len * 0.55), Vector3(0.4, 0.25, 0.4), 8, 4, CAMO_DARK)
+	# tail boom, fin, tail rotor
+	var tail_start: float = nose + body_len
+	h.cyl(Vector3(0, y0 + bh * 0.7, tail_start - 0.5), Vector3(0, y0 + bh * 0.95, L * 0.5 - 0.6), bh * 0.28, bh * 0.12, 7, CAMO)
+	h.box(Vector3(0, y0 + bh * 0.8, L * 0.5 - 0.7), Vector3(0.12, bh * 1.1, 1.1), CAMO, 0.04, Vector2(1.0, 0.6), Vector2(0, 0.25))
+	h.box(Vector3(0, y0 + bh * 0.85, L * 0.5 - 1.8), Vector3(2.4, 0.08, 0.6), CAMO, 0.02)
+	h.cyl(Vector3(0.12, y0 + bh * 1.5, L * 0.5 - 0.6), Vector3(0.22, y0 + bh * 1.5, L * 0.5 - 0.6), 1.1, 1.1, 10, RUBBER)
+	# landing gear
+	if p.get("wheels", false):
+		for s: float in [-1.0, 1.0]:
+			h.cyl(Vector3(s * bw * 0.45, y0 + 0.3, nose + body_len * 0.6), Vector3(s * bw * 0.6, 0.35, nose + body_len * 0.6), 0.06, 0.06, 4, METAL)
+			h.wheel(Vector3(s * bw * 0.62, 0.33, nose + body_len * 0.6), 0.33, 0.18, 8, RUBBER)
+		h.wheel(Vector3(0, 0.25, nose + 1.0), 0.25, 0.15, 8, RUBBER)
+	if p.get("door", false):
+		for s2: float in [-1.0, 1.0]:
+			h.box(Vector3(s2 * bw * 0.5, y0 + 0.2, nose + body_len * 0.5), Vector3(0.05, bh * 0.7, 1.6), CAMO_DARK, 0.01)
+	if p.get("wings", false) or p.get("pods", false):
+		var span: float = bw * (2.6 if p.get("wings", false) else 2.0)
+		h.box(Vector3(0, y0 + bh * 0.6, nose + body_len * 0.6), Vector3(span, 0.12, 1.1), CAMO, 0.03, Vector2(0.9, 0.7))
+		for s3: float in [-1.0, 1.0]:
+			h.cyl(Vector3(s3 * span * 0.42, y0 + bh * 0.45, nose + body_len * 0.6 - 0.9), Vector3(s3 * span * 0.42, y0 + bh * 0.45, nose + body_len * 0.6 + 0.9), 0.24, 0.24, 7, CAMO_DARK)
+			if p.get("atgm", false):
+				h.box(Vector3(s3 * span * 0.3, y0 + bh * 0.3, nose + body_len * 0.6), Vector3(0.45, 0.3, 1.5), METAL, 0.02)
+	if p.get("tandem", false):
+		h.cyl(Vector3(0, y0 + 0.1, nose + 1.6), Vector3(0, y0 - 0.1, nose - 0.2), 0.08, 0.06, 5, METAL)
+	md.pivots["rotor"] = Vector3(0, y0 + bh * 1.62, nose + body_len * 0.55)
+	var r: ForgeMesh = md.part("rotor", row)
+	var rr: float = p["rotor"]
+	var blades: int = 5 if rr > 9.0 else 4
+	for b: int in range(blades):
+		var a: float = TAU * b / blades
+		r.box(Vector3.ZERO, Vector3(0.45, 0.05, rr), RUBBER, 0.0, Vector2.ONE, Vector2.ZERO, Vector2.ONE, Vector2.ZERO,
+			Transform3D(Basis(Vector3.UP, a), Vector3(sin(a) * rr * 0.5, 0, cos(a) * rr * 0.5)))
+	r.cyl(Vector3(0, -0.15, 0), Vector3(0, 0.15, 0), 0.35, 0.3, 6, METAL)
+	md.meta["muzzle"] = Vector3(0, y0, nose)
+	md.meta["length"] = L
+	return md
+
+
 static func quad_drone(id: String, row: int) -> Model:
 	var md: Model = Model.new()
 	md.id = id
@@ -627,6 +695,15 @@ static func structure(id: String, w_m: float, d_m: float) -> Model:
 				_roof(m, Vector3(x3, 2.2, 0), 8.4, d_m * 0.72, 1.4, CANVAS)
 				m.box(Vector3(x3, 3.62, 0), Vector3(2.6, 0.05, 2.6), MARK, 0.0, Vector2.ONE, Vector2.ZERO, Vector2.ONE, Vector2.ZERO, Transform3D.IDENTITY, ROW_NEUTRAL)
 			m.box(Vector3(0, 0, -hd * 0.7), Vector3(2.2, 1.0, 1.4), WOOD, 0.05)
+		"helipad":
+			m.box(Vector3(0, 0, 0), Vector3(w_m * 0.85, 0.12, d_m * 0.85), CONCRETE, 0.04)
+			m.box(Vector3(-2.2, 0.12, 0), Vector3(0.9, 0.03, 7.0), CANVAS, 0.0)
+			m.box(Vector3(2.2, 0.12, 0), Vector3(0.9, 0.03, 7.0), CANVAS, 0.0)
+			m.box(Vector3(0, 0.12, 0), Vector3(4.4, 0.03, 0.9), CANVAS, 0.0)
+			m.blob(Vector3(hw * 0.75, 0, hd * 0.75), Vector3(2.8, 1.0, 1.8), 10, 6, RUBBER, false, true)
+			m.cyl(Vector3(-hw * 0.8, 0, -hd * 0.8), Vector3(-hw * 0.8, 5.0, -hd * 0.8), 0.06, 0.05, 4, METAL)
+			m.cyl(Vector3(-hw * 0.8, 4.8, -hd * 0.8), Vector3(-hw * 0.8 + 1.5, 4.6, -hd * 0.8), 0.25, 0.12, 6, MARK)
+			_drums(m, Vector3(hw * 0.7, 0, -hd * 0.7), 6)
 		"decon_point":
 			m.box(Vector3(0, 0, 0), Vector3(w_m * 0.85, 0.1, 6.0), CONCRETE, 0.03)
 			for i9: int in range(3):

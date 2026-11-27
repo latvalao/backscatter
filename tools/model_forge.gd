@@ -51,6 +51,18 @@ func _save_model(md: ForgeModels.Model, dir: String) -> void:
 		tris += fm.tri_count()
 		if part == "turret" or part == "gun":
 			continue
+		if part == "rotor":
+			var rn: Node3D = Node3D.new()
+			rn.name = "Rotor"
+			rn.position = md.pivots["rotor"]
+			root.add_child(rn)
+			rn.owner = root
+			var rm: MeshInstance3D = MeshInstance3D.new()
+			rm.name = "RotorMesh"
+			rm.mesh = fm.commit(-1.0, md.rust)
+			rn.add_child(rm)
+			rm.owner = root
+			continue
 		var mi: MeshInstance3D = MeshInstance3D.new()
 		mi.name = names.get(part, part)
 		mi.mesh = fm.commit(md.dirt_height, md.rust)

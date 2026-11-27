@@ -52,6 +52,10 @@ static func compute(world: SimWorld) -> int:
 	world.flares.hash_into(h)
 	world.wrecks.hash_into(h)
 	world.mines.hash_into(h)
+	h.add_int(world.support_queue.size())
+	for e: PackedInt64Array in world.support_queue:
+		for v: int in e:
+			h.add_int(v)
 	h.add_int(world.path_requests.size())
 	for pid: int in world.path_requests:
 		h.add_int(pid)

@@ -5,7 +5,7 @@
 class_name SelectionController
 extends Control
 
-enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE }
+enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE, SUPPORT }
 
 const CLICK_PICK_PX: float = 24.0
 const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "REVERSE: left-click destination",
@@ -14,7 +14,8 @@ const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "
 	"UNLOAD AT: left-click where the transports should drop their troops",
 	"ENGAGEMENT RANGE: left-click the distance to open fire at (Shift+Y clears)",
 	"MINEFIELD: left-click where the engineer lays mines (30 supply)",
-	"ILLUMINATION: left-click where to fire a flare"]
+	"ILLUMINATION: left-click where to fire a flare",
+	"%s: left-click the target point"]
 const DOUBLE_CLICK_S: float = 0.35
 const FACING_DRAG_PX: float = 24.0
 
@@ -47,6 +48,8 @@ var _last_click_def: int = -1
 var _tab_index: int = 0
 ## Set by GameScene: alert feed for the Space key.
 var alerts: AlertFeed
+## Off-map support kind being aimed (Mode.SUPPORT).
+var support_kind: int = 0
 
 
 func _ready() -> void:
@@ -262,6 +265,11 @@ func _key(k: InputEventKey) -> void:
 			message = "Hold fire" if hold else "Fire at will"
 
 
+func begin_support(kind: int) -> void:
+	support_kind = kind
+	set_mode(Mode.SUPPORT)
+
+
 func set_mode(m: Mode) -> void:
 	mode = m
 	if m != Mode.PLACE:
@@ -307,6 +315,19 @@ func _update_ghost() -> void:
 
 
 func _mode_click(pos: Vector2, shift: bool) -> void:
+	if mode == Mode.SUPPORT:
+		var gp2: Variant = cam.ground_point(pos)
+		if gp2 != null:
+			var s2: Vector2i = SimRunner.view_to_sim(gp2 as Vector3)
+			var sc: SupportCommand = SupportCommand.new(support_kind, s2.x, s2.y)
+			sc.player_id = local_player()
+			if sc.validate(runner.world):
+				submit(sc)
+				message = "%s called in" % str(SupportCommand.spec(runner.world, support_kind).get("name", "Support"))
+			else:
+				message = "Can't call that there (observer, radio, supply or uses left)"
+		set_mode(Mode.NORMAL)
+		return
 	if mode == Mode.PLACE:
 		var cell: Vector2i = _placement_cell(pos)
 		if cell.x >= 0 and place_def != null:
@@ -561,4 +582,6 @@ func _set_selection(ids: PackedInt32Array) -> void:
 func mode_text() -> String:
 	if mode == Mode.PLACE and place_def != null:
 		return MODE_NAMES[mode] % place_def.display_name
+	if mode == Mode.SUPPORT:
+		return MODE_NAMES[mode] % str(SupportCommand.spec(runner.world, support_kind).get("name", "Support")).to_upper()
 	return MODE_NAMES[mode]

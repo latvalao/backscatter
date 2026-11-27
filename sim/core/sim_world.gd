@@ -61,6 +61,8 @@ var smoke: SmokeStore = SmokeStore.new()
 var flares: SmokeStore = SmokeStore.new()
 var wrecks: WreckStore = WreckStore.new()
 var mines: MineStore = MineStore.new()
+## Off-map support in flight: [fire_tick, kind, x, y, player, extra].
+var support_queue: Array[PackedInt64Array] = []
 
 var is_night: bool = false
 
@@ -124,6 +126,7 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 	_systems.append(ObjectiveSystem.new())     # 9
 	_systems.append(LogisticsSystem.new())     # 9
 	_systems.append(FieldSystem.new())         # 9: mines, salvage, crews, flares
+	_systems.append(SupportSystem.new())       # 9: off-map support arriving
 	_systems.append(VictorySystem.new())       # 10
 
 
@@ -134,12 +137,14 @@ func component_stores() -> Array[ComponentStore]:
 
 
 ## Adds a player. Faction defaults by team (0 = Coalition, else Eastern).
-func add_player(team: int, faction: String = "", is_ai: bool = false) -> int:
+func add_player(team: int, faction: String = "", is_ai: bool = false, battlegroup: int = 0) -> int:
 	if faction == "":
 		faction = "nc" if team == 0 else "ec"
 	var sup: int = defs.rules.get("start_supply", 0)
 	var mp: int = defs.rules.get("start_manpower", 0)
-	return players.add(team, faction, sup, mp, is_ai)
+	var p: int = players.add(team, faction, sup, mp, is_ai)
+	players.battlegroup[p] = clampi(battlegroup, 0, maxi(0, defs.battlegroup_count(faction) - 1))
+	return p
 
 
 func team_of_player(player: int) -> int:
@@ -302,6 +307,7 @@ func spawn_structure(def: UnitStats, team: int, owner: int, cx: int, cy: int, co
 		x, y - (def.footprint_h * SimGrid.CELL_MM / 2 + 16000))
 	if not complete:
 		units.hp[id] = maxi(1, def.hp / 10)
+	on_net[id] = 1 if complete and (def.emitter_kind == UnitStats.EMIT_HQ or def.emitter_kind == UnitStats.EMIT_RADIO) else 0
 	var cells: PackedInt32Array = footprint_cells(def, cx, cy)
 	for c: int in cells:
 		occupancy[c] = id

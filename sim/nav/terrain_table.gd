@@ -37,6 +37,9 @@ const CONCEAL: Array[int] = [1000, 900, 450, 850, 1000, 500, 650]
 
 ## LOS is blocked once a ray has passed through this much of the terrain (mm). 0 = never blocks.
 const BLOCK_DEPTH_MM: Array[int] = [0, 0, 50000, 0, 0, 16000, 24000]
+## Height of the blocking canopy / roofs / outcrops above ground: a sight line
+## passing higher than this over the cell is not obstructed by it.
+const BLOCK_HEIGHT_MM: Array[int] = [0, 0, 18000, 0, 0, 10000, 6000]
 
 
 static func speed(mobility: int, terrain: int) -> int:

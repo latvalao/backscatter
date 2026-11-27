@@ -32,6 +32,7 @@ enum Type {
 	ALERT,           # entity = subject, value = alert code (1 = crew recovered), x/y = place
 	SALVAGED,        # entity = wreck's old id, other = engineer, value = supply, x/y = place
 	FLARE,           # x/y = flare position, other = firing unit
+	SUPPORT_CALLED,  # entity = caller, other = player, value = kind, x/y = target
 }
 
 var kind: Type

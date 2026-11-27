@@ -371,13 +371,16 @@ func _complete_order(world: SimWorld, id: int) -> void:
 		Orders.start(world, id, _next_order[0], _next_order[1], _next_order[2], _next_order[3], 0)
 
 
-## Drones fly straight at their goal, ignoring terrain and other units, then loiter.
+## Air units fly straight at their goal, ignoring terrain and other units,
+## then loiter. Helicopters drop to a third of their altitude when they stop
+## (hiding behind tree lines), burn fuel, and land where they run dry.
 func _move_air(world: SimWorld, id: int) -> void:
 	var t: TransformStore = world.transform
 	var o: OrderStore = world.orders
 	var def: UnitStats = world.def_of(id)
 	var spd: int = 0
-	if o.kind[id] != OrderStore.NONE and o.kind[id] != OrderStore.FIRE_MISSION:
+	var landed: bool = def.fuel_capacity > 0 and world.logistics.fuel[id] <= 0
+	if o.kind[id] != OrderStore.NONE and o.kind[id] != OrderStore.FIRE_MISSION and not landed:
 		var dx: int = o.goal_x[id] - t.x[id]
 		var dy: int = o.goal_y[id] - t.y[id]
 		var d: int = FixedMath.length2(dx, dy)
@@ -392,5 +395,13 @@ func _move_air(world: SimWorld, id: int) -> void:
 			spd = def.max_speed
 			t.x[id] = clampi(t.x[id] + spd * FixedMath.cos_b(t.heading[id]) / FixedMath.ONE, 0, world.map_width_mm() - 1)
 			t.y[id] = clampi(t.y[id] + spd * FixedMath.sin_b(t.heading[id]) / FixedMath.ONE, 0, world.map_height_mm() - 1)
-	t.z[id] = world.grid.ground_at(t.x[id], t.y[id]) + def.altitude_mm
+			if def.fuel_capacity > 0:
+				_burn_fuel(world, id, def, spd)
+	var alt: int = def.altitude_mm
+	if def.battery_ticks == 0:
+		alt = 0 if landed else (def.altitude_mm if spd > 0 else def.altitude_mm / 3)
+	var ground: int = world.grid.ground_at(t.x[id], t.y[id])
+	# climb / descend smoothly
+	var cur: int = t.z[id] - ground
+	t.z[id] = ground + cur + clampi(alt - cur, -800, 800)
 	world.mobility.speed[id] = spd

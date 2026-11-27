@@ -11,6 +11,40 @@ var _unit_index: Dictionary = {}    # String -> int (lookup only)
 var _weapon_index: Dictionary = {}
 
 
+## data/doctrine: off-map support kinds and battlegroups (lookup only).
+var support: Dictionary = {}
+var battlegroups: Dictionary = {}
+const SUPPORT_KINDS: Array[String] = ["airstrike", "artillery", "paradrop"]
+
+
+func battlegroup_count(faction: String) -> int:
+	var l: Array = battlegroups.get(faction, [])
+	return l.size()
+
+
+func battlegroup(faction: String, index: int) -> Dictionary:
+	var l: Array = battlegroups.get(faction, [])
+	if index < 0 or index >= l.size():
+		return {}
+	return l[index]
+
+
+## Can this battlegroup field the unit?
+func allowed(unit_id: String, faction: String, bg: int) -> bool:
+	var g: Dictionary = battlegroup(faction, bg)
+	var ex: Array = g.get("exclude", [])
+	return not ex.has(unit_id)
+
+
+## Can this battlegroup call the support kind (index into SUPPORT_KINDS)?
+func support_allowed(kind: int, faction: String, bg: int) -> bool:
+	var g: Dictionary = battlegroup(faction, bg)
+	if g.is_empty():
+		return true
+	var s: Array = g.get("support", [])
+	return s.has(SUPPORT_KINDS[kind])
+
+
 func add_weapon(w: WeaponStats) -> void:
 	w.index = weapons.size()
 	weapons.append(w)

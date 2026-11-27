@@ -10,6 +10,7 @@ var _lobby_box: VBoxContainer
 var _roster: Label
 var _status: Label
 var _start_btn: Button
+var _battlegroup: OptionButton
 var _invite_btn: Button
 var _lobby: Lobby
 var _transport: NetTransport
@@ -45,6 +46,20 @@ func _ready() -> void:
 
 	_main = VBoxContainer.new()
 	col.add_child(_main)
+	var bg_row: HBoxContainer = HBoxContainer.new()
+	_main.add_child(bg_row)
+	var bg_label: Label = Label.new()
+	bg_label.text = "Battlegroup"
+	bg_row.add_child(bg_label)
+	_battlegroup = OptionButton.new()
+	_battlegroup.focus_mode = Control.FOCUS_NONE
+	var defs: DefDb = DefLoader.load_default()
+	for g: Variant in defs.battlegroups.get("nc", []):
+		var gd: Dictionary = g
+		_battlegroup.add_item(str(gd.get("name", "?")))
+		_battlegroup.set_item_tooltip(_battlegroup.item_count - 1, str(gd.get("text", "")))
+	_battlegroup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bg_row.add_child(_battlegroup)
 	_button(_main, "Skirmish vs AI — Easy", func() -> void: _start_skirmish(0))
 	_button(_main, "Skirmish vs AI — Normal (+ Marauders)", func() -> void: _start_skirmish(1))
 	_button(_main, "Skirmish vs AI — Hard (+ Marauders)", func() -> void: _start_skirmish(2))
@@ -116,6 +131,7 @@ func _process(_delta: float) -> void:
 func _start_skirmish(difficulty: int) -> void:
 	var s: MatchSettings = MatchSettings.default_skirmish(difficulty, difficulty > 0)
 	s.players[0]["name"] = _name.text
+	s.players[0]["battlegroup"] = maxi(0, _battlegroup.selected)
 	s.match_seed = Time.get_ticks_usec()
 	_launch(GameScene.create_offline(s))
 
@@ -124,7 +140,7 @@ func _start_sandbox() -> void:
 	var s: MatchSettings = MatchSettings.new()
 	s.mode = "sandbox"
 	s.match_seed = 20261127
-	s.add_player(_name.text, 0, "nc", false)
+	s.add_player(_name.text, 0, "nc", false, 1, maxi(0, _battlegroup.selected))
 	s.add_player("Eastern AI", 1, "ec", true)
 	_launch(GameScene.create_offline(s))
 

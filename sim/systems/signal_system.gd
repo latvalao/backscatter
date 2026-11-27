@@ -57,6 +57,9 @@ static func emission(world: SimWorld, id: int) -> int:
 		UnitStats.EMIT_DRONE_LINK:
 			if world.units.link[id] > 0 and world.units.link_lost[id] == 0:
 				s = def.emitter_strength
+	# a support call is a strong burst whatever the EMCON setting
+	if world.tick - world.units.tx_tick[id] < PULSE_TICKS:
+		s = maxi(s, ARTILLERY_PULSE)
 	# firing artillery cannot be hidden
 	if world.tick - world.units.last_fired_tick[id] < PULSE_TICKS and _has_indirect(world, def):
 		s = maxi(s, ARTILLERY_PULSE)
@@ -209,8 +212,8 @@ func _drones(world: SimWorld, tick: int) -> void:
 	for team: int in range(SimWorld.MAX_TEAMS):
 		for id: int in world.team_units[team]:
 			var def: UnitStats = world.def_of(id)
-			if not def.is_air:
-				continue
+			if not def.is_air or def.emitter_kind != UnitStats.EMIT_DRONE_LINK:
+				continue  # crewed aircraft fly on their own
 			# battery
 			var lg: LogisticsStore = world.logistics
 			if def.battery_ticks > 0:

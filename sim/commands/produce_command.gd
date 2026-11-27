@@ -26,6 +26,8 @@ func validate(world: SimWorld) -> bool:
 	var ud: UnitStats = world.defs.units[idx]
 	if ud.is_structure or ud.built_at != world.def_of(building).role or ud.faction != world.players.faction[player_id]:
 		return false
+	if not world.defs.allowed(ud.id, ud.faction, world.players.battlegroup[player_id]):
+		return false
 	if world.structures.get_queue(building).size() >= world.defs.rule("production_queue_max"):
 		return false
 	return world.players.can_afford(player_id, ud.cost_supply, ud.cost_manpower)

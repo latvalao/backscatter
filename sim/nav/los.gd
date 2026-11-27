@@ -33,7 +33,7 @@ static func check(world: SimWorld, ax: int, ay: int, az: int, bx: int, by: int, 
 		if c == a_cell or c == b_cell:
 			continue
 		var depth: int = TerrainTable.BLOCK_DEPTH_MM[grid.terrain[c]]
-		if depth > 0:
+		if depth > 0 and rz - grid.ground_mm[c] < TerrainTable.BLOCK_HEIGHT_MM[grid.terrain[c]]:
 			occl += (step_len * OCCLUSION_LIMIT) / depth
 			if occl > OCCLUSION_LIMIT:
 				return BLOCKED

@@ -28,6 +28,9 @@ const RESERVE: int = 100
 const DEFEND_RADIUS_MM: int = 700000
 const HOT_RATE: int = 2_000_000   # µSv/h — leave
 const FIX_FIRE_RADIUS_MM: int = 150000
+const SUPPORT_INTERVAL: int = 900
+const SUPPORT_CLUSTER_MM: int = 150000
+const SUPPORT_MIN_TARGETS: int = 3
 
 var difficulty: int = NORMAL
 var doctrine: Doctrine
@@ -79,6 +82,8 @@ func _think(world: SimWorld, team: int, tick: int) -> void:
 	_produce(world, team)
 	_logistics(world, team, hq)
 	_allocate(world, team, hq, tick)
+	if tick % SUPPORT_INTERVAL < THINK[difficulty]:
+		_call_support(world, team)
 
 
 func _goal_done(world: SimWorld, team: int, tf: TaskForce) -> bool:
@@ -294,7 +299,7 @@ func _build(world: SimWorld, team: int, hq: int) -> void:
 	var dir: int = 1 if world.transform.x[hq] < world.map_width_mm() / 2 else -1
 	for i: int in range(doctrine.build_order.size()):
 		var role: String = doctrine.build_order[i]
-		if _own(world, team, role, true) != 0:
+		if _own(world, team, role, true) != 0 or not _can_use_building(world, role):
 			continue
 		var def: UnitStats = world.defs.unit(role)
 		# the first two buildings are essential; the rest are luxuries for a healthy economy
@@ -315,14 +320,16 @@ func _produce(world: SimWorld, team: int) -> void:
 	for id: int in my_units(world):
 		var r: String = world.def_of(id).role
 		counts[r] = int(counts.get(r, 0)) + 1
-	for role: String in ["barracks", "motor_pool", "artillery_park"]:
+	for role: String in ["barracks", "motor_pool", "artillery_park", "helipad"]:
 		var b: int = _own(world, team, role)
 		if b == 0 or world.structures.get_queue(b).size() >= 2:
 			continue
 		var best: UnitStats = null
 		var best_score: int = -1
 		for u: UnitStats in world.defs.producible(role, faction):
-			if u.is_air or u.role == "logistics" or u.role == "builder":
+			if (u.is_air and u.battery_ticks > 0) or u.role == "logistics" or u.role == "builder":
+				continue
+			if not world.defs.allowed(u.id, faction, world.players.battlegroup[player]):
 				continue
 			var wgt: int = doctrine.weights.get(u.role, 0)
 			if wgt <= 0 or not world.players.can_afford(player, u.cost_supply + RESERVE, u.cost_manpower):
@@ -661,3 +668,38 @@ func _own(world: SimWorld, team: int, role: String, include_sites: bool = false)
 			if include_sites or world.structures.is_complete(id):
 				return id
 	return 0
+
+
+## Does this AI's battlegroup have anything to produce in the building?
+func _can_use_building(world: SimWorld, role: String) -> bool:
+	if role != "helipad":
+		return true
+	var faction: String = world.players.faction[player]
+	for u: UnitStats in world.defs.producible(role, faction):
+		if world.defs.allowed(u.id, faction, world.players.battlegroup[player]) and doctrine.weights.get(u.role, 0) > 0:
+			return true
+	return false
+
+
+## Off-map support on the densest visible enemy cluster, when rich enough.
+func _call_support(world: SimWorld, team: int) -> void:
+	if world.players.supply[player] < 800:
+		return
+	var vis: PackedInt32Array = world.visible_enemies[team]
+	var best: int = 0
+	var best_n: int = 0
+	for a: int in vis:
+		if world.is_structure(a) or world.is_air(a):
+			continue
+		var n: int = 0
+		for b: int in vis:
+			if FixedMath.length2(world.transform.x[a] - world.transform.x[b], world.transform.y[a] - world.transform.y[b]) <= SUPPORT_CLUSTER_MM:
+				n += 1
+		if n > best_n:
+			best_n = n
+			best = a
+	if best == 0 or best_n < SUPPORT_MIN_TARGETS:
+		return
+	for k: int in [SupportCommand.KIND_ARTILLERY, SupportCommand.KIND_AIRSTRIKE]:
+		if issue(world, SupportCommand.new(k, world.transform.x[best], world.transform.y[best])):
+			return

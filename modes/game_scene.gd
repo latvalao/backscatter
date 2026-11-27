@@ -157,6 +157,10 @@ func _ready() -> void:
 	alerts.minimap = minimap
 	hud.add_child(alerts)
 	controller.alerts = alerts
+	if not replay_mode:
+		var support: SupportBar = SupportBar.new()
+		support.controller = controller
+		hud.add_child(support)
 	var los: LosTool = LosTool.new()
 	los.runner = runner
 	los.controller = controller

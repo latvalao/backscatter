@@ -1,0 +1,85 @@
+{
+	"_doc": "Battlegroups (docs/FEATURES.md 3.4), picked before the match. 'exclude' removes units from production; 'support' lists the off-map support the group can call.",
+	"nc": [
+		{
+			"id": "armoured",
+			"name": "Armoured Battlegroup",
+			"text": "Tanks, IFVs and heavy artillery. No helicopters.",
+			"exclude": [
+				"nc_heli_transport",
+				"nc_heli_attack"
+			],
+			"support": [
+				"artillery",
+				"airstrike"
+			]
+		},
+		{
+			"id": "airmobile",
+			"name": "Air-Mobile Infantry",
+			"text": "Helicopters, infantry and paradrops. No main battle tanks or SPGs.",
+			"exclude": [
+				"nc_mbt_2a",
+				"nc_spg_155"
+			],
+			"support": [
+				"paradrop",
+				"airstrike"
+			]
+		},
+		{
+			"id": "recon",
+			"name": "Recon and Fires",
+			"text": "Drones, recon, SPGs and attack helicopters. No tanks, no transport helicopters.",
+			"exclude": [
+				"nc_mbt_2a",
+				"nc_heli_transport"
+			],
+			"support": [
+				"artillery",
+				"airstrike"
+			]
+		}
+	],
+	"ec": [
+		{
+			"id": "armoured",
+			"name": "Tank Regiment",
+			"text": "Tanks, IFVs and massed artillery. No helicopters.",
+			"exclude": [
+				"ec_heli_transport",
+				"ec_heli_attack"
+			],
+			"support": [
+				"artillery",
+				"airstrike"
+			]
+		},
+		{
+			"id": "airmobile",
+			"name": "Air Assault Brigade",
+			"text": "Helicopters, infantry and paradrops. No main battle tanks or SPGs.",
+			"exclude": [
+				"ec_mbt_72",
+				"ec_spg_122"
+			],
+			"support": [
+				"paradrop",
+				"artillery"
+			]
+		},
+		{
+			"id": "recon",
+			"name": "Electronic Warfare Group",
+			"text": "EW, recon, SPGs and assault helicopters. No tanks, no transport helicopters.",
+			"exclude": [
+				"ec_mbt_72",
+				"ec_heli_transport"
+			],
+			"support": [
+				"artillery",
+				"airstrike"
+			]
+		}
+	]
+}

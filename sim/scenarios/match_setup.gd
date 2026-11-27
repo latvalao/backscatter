@@ -24,7 +24,7 @@ static func create(settings: MatchSettings, defs: DefDb, grid: SimGrid = null) -
 		grid = MapGen.generate(settings.map_seed, settings.map_cells, settings.map_cells, settings.symmetric and settings.mode == "skirmish")
 	var w: SimWorld = SimWorld.new(settings.match_seed, defs, grid)
 	for p: Dictionary in settings.players:
-		w.add_player(p["team"], p["faction"], p["ai"])
+		w.add_player(p["team"], p["faction"], p["ai"], int(p.get("battlegroup", 0)))
 	if settings.mode == "skirmish" and settings.marauders:
 		w.add_player(2, "mr", true)
 	_fallout(w, settings)

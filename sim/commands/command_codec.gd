@@ -44,6 +44,8 @@ static func create(type: String) -> SimCommand:
 			return FlareCommand.new()
 		"engineer_task":
 			return EngineerTaskCommand.new()
+		"support":
+			return SupportCommand.new()
 	return null
 
 

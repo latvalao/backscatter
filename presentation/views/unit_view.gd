@@ -33,6 +33,7 @@ var _last_pos: Vector3 = Vector3.INF
 var _bob: float = 0.0
 var _burn: float = 0.0
 var _selected: bool = false
+var _rotor: Node3D
 
 
 func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_faction: String = "") -> void:
@@ -56,6 +57,7 @@ func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_fact
 	if not def.is_structure:
 		model.scale = Vector3.ONE * ModelLibrary.UNIT_SCALE
 	_turret = model.get_node_or_null("Turret") as Node3D
+	_rotor = model.get_node_or_null("Rotor") as Node3D
 	if def.is_infantry:
 		_build_squad()
 	if def.is_air:
@@ -289,6 +291,8 @@ func make_wreck(fx: Effects) -> void:
 
 
 func _process(delta: float) -> void:
+	if _rotor != null and not wrecked:
+		_rotor.rotation.y += delta * 28.0
 	if wrecked and _burn > 0.7:
 		_burn = maxf(0.7, _burn - delta * 0.004)
 		_set_param(&"burn", _burn)
