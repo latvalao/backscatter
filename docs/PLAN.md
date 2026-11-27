@@ -50,13 +50,45 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
   facing unit tests, battle determinism
 - Balance is first-pass only; Coalition currently wins the scripted 20v20 decisively.
 
-## M3 — Lockstep multiplayer + replays
-Command serialization, lockstep scheduler (input delay 3 ticks, adaptive), offline
-loopback transport, GodotSteam transport + lobbies/invites, checksum exchange + desync
-dumps, replay record/playback.
+## M3 — Lockstep multiplayer + replays ✅ (Steam path untested here)
+- ✅ Command serialization (`CommandCodec`, byte-identical round trip for every command)
+- ✅ `Lockstep`: turns scheduled at tick + input delay (3 networked / 1 solo), tick runs
+  only with every human's turn, checksum exchange every 20 ticks, desync signal +
+  `user://desync/` dumps (`tools/desync_diff.py`); host-controlled pause/speed
+- ✅ Transports behind one interface (star topology, host relays game messages):
+  `LoopbackTransport` (tests, simulated latency/jitter), `ENetTransport` (LAN / direct
+  IP, UDP 27960), `SteamTransport` (GodotSteam lobbies, overlay invites, P2P packets)
+- ✅ Invite-only `Lobby` protocol (HELLO/WELCOME/ROSTER/START), AI slots, teams
+- ✅ Replays: settings + per-tick commands + checksums; `ReplayPlayer` verifies every
+  checksum; auto-saved to `user://replays/` on victory / leave / F12; menu viewer
+- ✅ AI players run inside the sim (`AiController`), so AI matches stay in sync
+- ✅ Main menu: skirmish vs AI, sandbox, host/join LAN, host Steam lobby, last replay
+- ✅ Tests: two lagged peers stay bit-identical 400 ticks + replay matches; desync
+  detection; replay tamper detection; CI runs a real two-process ENet session
+- ⬜ **Accept (needs two PCs + Steam):** 20 min over Steam without desync; replay
+  reproduces final checksum. Install GodotSteam (see `net/transport/steam_transport.gd`).
 
-## M4 — Economy, logistics, base building
-## M5 — Radiation
+## M4 — Economy, logistics, base building ✅
+- ✅ SUPPLY / MANPOWER per player (start 2000 / 80, manpower regen), rules in
+  `data/rules/economy.json`
+- ✅ Structures as data (`data/buildings/`): HQ, supply depot, barracks, motor pool,
+  artillery park, repair yard, trench, vehicle pit, tank traps, depot objective;
+  footprints block movement per mobility class (dynamic grid costs)
+- ✅ Engineers (and infantry for trenches) build via `BuildCommand`; sites grow with
+  builder time; placement rules (buildable terrain, no overlap, no units in the way)
+- ✅ Production queues (`ProduceCommand`, cancel/refund, rally points), unit lists per
+  building role and faction
+- ✅ Depot objectives: capture by presence (contested = frozen), income only when a road
+  route to a friendly HQ/supply depot avoids enemy units — else stock for supply trucks
+- ✅ Fuel burn per km (out of fuel = immobile), ammo; resupply near HQ / supply depot /
+  loaded truck (costs supply); repair at repair yard or by idle engineers
+- ✅ Skirmish rules: lose all HQs = defeated; victory banner; `SkirmishAi` dummy opponent
+- ✅ UI: resources HUD, build menu + placement ghost, production panel + queue, depot flags
+- ✅ **Accept:** `test_skirmish_loop` — build FOB → capture depot → produce → destroy HQ
+- Deferred: HQ upgrades (one-time unlocks), helipad, minefields/wire, field hospital and
+  decon point (M5), crew recovery.
+
+## M5 — Radiation ⬜ (next)
 ## M6 — Backscatter (signature & EW)
 ## M7 — AI
 ## M8 — Modes & content
@@ -72,5 +104,8 @@ dumps, replay record/playback.
 - **Defs as JSON:** units/weapons live as JSON (human units: m, km/h, s) rather than
   `.tres`; the loader converts to integer stat tables. Spreadsheet-friendly, per §7.7.
 - **Suppression scale:** stored 0–1000 (tenths of the doc's 0–100).
+- **Fixed input delay** of 3 ticks for networked play (adaptive delay later, as needed).
+- **Steam transport** uses GodotSteam's classic P2P packet API (simplest, widely used);
+  can move to Networking Messages later behind the same interface.
 - **Terrain tunables** (speeds, cover, concealment, LOS depth) live in
   `sim/nav/terrain_table.gd` as a constants file.

@@ -43,3 +43,9 @@ static func test_map(seed_value: int = 7) -> SimGrid:
 	if not _map_cache.has(seed_value):
 		_map_cache[seed_value] = MapGen.generate(seed_value, 500, 500)
 	return _map_cache[seed_value]
+
+
+## Places a structure by def id with its footprint origin at cell (cx, cy).
+static func structure(w: SimWorld, def_id: String, player: int, cx: int, cy: int, complete: bool = true) -> int:
+	var team: int = w.team_of_player(player) if player >= 0 else SimWorld.NEUTRAL_TEAM
+	return w.spawn_structure(w.defs.unit(def_id), team, player, cx, cy, complete)

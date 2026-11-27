@@ -29,3 +29,13 @@ func apply(world: SimWorld) -> void:
 
 func type_id() -> StringName:
 	return &"attack"
+
+
+func write(buf: StreamPeerBuffer) -> void:
+	write_ids(buf)
+	buf.put_32(target_id)
+
+
+func read(buf: StreamPeerBuffer) -> void:
+	read_ids(buf)
+	target_id = buf.get_32()

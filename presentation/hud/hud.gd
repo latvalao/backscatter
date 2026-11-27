@@ -1,21 +1,26 @@
-## Text HUD: match status, current mode, selected unit card and key help.
+## Text HUD: resources, match status, current mode, selected unit card, key
+## help, banners (victory/defeat/desync) and the Esc menu.
 class_name Hud
 extends CanvasLayer
 
 var runner: SimRunner
 var controller: SelectionController
 var views: ViewSync
+var scene: GameScene
 
 var _status: Label
 var _card: Label
 var _help: Label
+var _banner: Label
+var _menu: PanelContainer
 var _msg_timer: float = 0.0
 var _last_msg: String = ""
+var _ended: bool = false
 
-const HELP: String = "LMB select/box · RMB move / attack (on enemy) · Shift queue · Alt+RMB reverse\n" \
+const HELP: String = "LMB select/box · RMB move / attack (on enemy) / rally (building) · Shift queue · Alt+RMB reverse\n" \
 	+ "A attack-move · R reverse · F fire mission · G smoke mission · X smoke launchers · S stop · H hold fire\n" \
-	+ "Ctrl+1-9 set group · 1-9 recall · arrows/edge/MMB pan · wheel zoom · Q/E rotate · PgUp/PgDn pitch\n" \
-	+ "P pause · +/- speed · F9 reveal map · F10 toggle labels"
+	+ "F1–F8 build/produce buttons · Ctrl+1-9 set group · 1-9 recall · arrows/edge/MMB pan · wheel zoom · Q/E rotate\n" \
+	+ "P pause · +/- speed · F9 reveal (solo) · F10 labels · F12 save replay · Esc menu"
 
 
 func _ready() -> void:
@@ -27,11 +32,18 @@ func _ready() -> void:
 	_help = _label(Vector2(0, 0), 13)
 	_help.anchor_left = 1.0
 	_help.anchor_right = 1.0
-	_help.offset_left = -640
+	_help.offset_left = -760
 	_help.offset_top = 8
-	_help.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_help.offset_right = -12
+	_help.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_help.text = HELP
+	_banner = _label(Vector2.ZERO, 34)
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_banner.offset_top = 120
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_banner.visible = false
+	_build_menu()
 
 
 func _label(pos: Vector2, size: int) -> Label:
@@ -44,16 +56,55 @@ func _label(pos: Vector2, size: int) -> Label:
 	return l
 
 
+func _build_menu() -> void:
+	_menu = PanelContainer.new()
+	_menu.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	var box: VBoxContainer = VBoxContainer.new()
+	_menu.add_child(box)
+	for pair: Array in [["Resume", func() -> void: toggle_menu()],
+			["Save replay", func() -> void: banner("Replay saved: " + ProjectSettings.globalize_path(scene.save_replay()))],
+			["Leave match", func() -> void: scene.leave()]]:
+		var b: Button = Button.new()
+		b.text = pair[0]
+		b.custom_minimum_size = Vector2(240, 36)
+		b.pressed.connect(pair[1] as Callable)
+		box.add_child(b)
+	_menu.visible = false
+	add_child(_menu)
+
+
+func toggle_menu() -> void:
+	_menu.visible = not _menu.visible
+
+
+func banner(text: String) -> void:
+	_banner.text = text
+	_banner.visible = true
+
+
 func _process(delta: float) -> void:
 	var w: SimWorld = runner.world
-	var counts: PackedInt32Array = PackedInt32Array([0, 0])
+	var me: int = controller.local_player()
+	var team: int = views.local_team
+	var counts: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
 	for id: int in w.entities.ids():
-		if w.units.has(id) and w.units.team[id] < 2:
+		if w.units.has(id) and not w.is_structure(id):
 			counts[w.units.team[id]] += 1
+	var depots: int = 0
+	var routed: int = 0
+	for d: int in ObjectiveSystem._depots(w):
+		if w.structures.holder_team[d] == team:
+			depots += 1
+			routed += w.structures.connected[d]
 	var speed_txt: String = "PAUSED" if runner.speed == 0 else "%dx" % runner.speed
-	_status.text = "Backscatter — sandbox   t=%d:%02d  [%s]   NC %d  vs  EC %d   sim %.1f ms   %d FPS%s\n%s" % [
-		w.tick / 600, (w.tick / 10) % 60, speed_txt, counts[0], counts[1], runner.last_tick_ms,
-		Engine.get_frames_per_second(), "   (REVEAL)" if views.reveal_all else "", controller.mode_text()]
+	var res: String = ""
+	if me < w.players.count():
+		res = "SUPPLY %d   MANPOWER %d   depots %d (%d on route)" % [w.players.supply[me], w.players.manpower[me], depots, routed]
+	var mode_name: String = "REPLAY" if scene.replay_mode else settings_mode()
+	_status.text = "%s   t=%d:%02d  [%s]   units %d vs %d   sim %.1f ms   %d FPS%s%s\n%s\n%s" % [
+		mode_name, w.tick / 600, (w.tick / 10) % 60, speed_txt, counts[team], counts[1 - mini(team, 1)],
+		runner.last_tick_ms, Engine.get_frames_per_second(), "   (REVEAL)" if views.reveal_all else "",
+		"   WAITING FOR PLAYERS…" if runner.waiting and not scene.replay_mode else "", res, controller.mode_text()]
 	if controller.message != _last_msg:
 		_last_msg = controller.message
 		_msg_timer = 3.0
@@ -61,17 +112,25 @@ func _process(delta: float) -> void:
 	if _msg_timer > 0.0:
 		_status.text += "\n" + controller.message
 	_card.text = _card_text(w)
+	if w.winner_team >= 0 and not _ended:
+		_ended = true
+		banner("VICTORY" if w.winner_team == team else "DEFEAT")
+
+
+func settings_mode() -> String:
+	return "Skirmish" if scene.settings.mode == "skirmish" else "Sandbox"
 
 
 func _card_text(w: SimWorld) -> String:
 	var sel: PackedInt32Array = controller.selection
-	if sel.is_empty():
+	if sel.is_empty() or not w.is_unit(sel[0]):
 		return ""
 	if sel.size() > 1:
 		var names: Dictionary = {}
 		for id: int in sel:
-			var n: String = w.def_of(id).display_name
-			names[n] = int(names.get(n, 0)) + 1
+			if w.is_unit(id):
+				var n: String = w.def_of(id).display_name
+				names[n] = int(names.get(n, 0)) + 1
 		var parts: PackedStringArray = PackedStringArray()
 		for n: String in names.keys():
 			parts.append("%d× %s" % [names[n], n])
@@ -80,6 +139,10 @@ func _card_text(w: SimWorld) -> String:
 	var d: UnitStats = w.def_of(id)
 	var u: UnitStore = w.units
 	var lines: PackedStringArray = PackedStringArray()
+	if d.is_structure:
+		lines.append("%s   hp %d/%d%s" % [d.display_name, u.hp[id], d.hp,
+			"" if w.structures.is_complete(id) else "   UNDER CONSTRUCTION"])
+		return "\n".join(lines)
 	lines.append("%s   [%s]   order: %s%s" % [d.display_name, d.role, OrderStore.NAMES[w.orders.kind[id]],
 		"   HOLD FIRE" if u.stance[id] == UnitStore.STANCE_HOLD_FIRE else ""])
 	if d.is_infantry:
@@ -90,13 +153,18 @@ func _card_text(w: SimWorld) -> String:
 	else:
 		lines.append("hp %d/%d   armour F%d S%d R%d T%d   crew %s   damage %s" % [u.hp[id], d.hp,
 			d.armour_front, d.armour_side, d.armour_rear, d.armour_top, _crew(d, u.crew[id]), _damage(u.damage[id])])
-	lines.append("suppression %d%%   morale %d   kills %d   smoke %d   speed %d km/h" % [u.suppression[id] / 10, u.morale[id],
-		u.kills[id], u.smoke_charges[id], absi(w.mobility.speed[id]) * 36 / 1000])
+	var extra: String = ""
+	if d.fuel_capacity > 0:
+		extra += "   fuel %d/%d L" % [w.logistics.fuel[id] / 1000, d.fuel_capacity / 1000]
+	if d.cargo_capacity > 0:
+		extra += "   cargo %d/%d" % [w.logistics.cargo[id], d.cargo_capacity]
+	lines.append("suppression %d%%   morale %d   kills %d   smoke %d   speed %d km/h%s" % [u.suppression[id] / 10, u.morale[id],
+		u.kills[id], u.smoke_charges[id], absi(w.mobility.speed[id]) * 36 / 1000, extra])
 	for s: int in range(d.weapons.size()):
 		var wd: WeaponStats = w.defs.weapons[d.weapons[s]]
 		var k: int = id * WeaponStore.MAX_WEAPONS + s
 		var tgt: int = w.weapons.target[k]
-		lines.append("  %-20s ammo %4d   %s" % [wd.id, w.weapons.ammo[k], ("→ #%d" % tgt) if tgt > 0 else ""])
+		lines.append("  %-20s ammo %4d/%d   %s" % [wd.id, w.weapons.ammo[k], wd.ammo_capacity, ("→ #%d" % tgt) if tgt > 0 else ""])
 	return "\n".join(lines)
 
 

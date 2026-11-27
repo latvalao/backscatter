@@ -14,6 +14,12 @@ enum Type {
 	SOLDIER_KILLED,  # entity = squad, other = shooter, value = members left
 	SMOKE,           # x/y = cloud centre, value = radius
 	MISSED,          # entity = shooter, other = target, value = weapon index, x/y = miss point
+	BUILT,           # entity = structure, value = def index
+	PRODUCED,        # entity = new unit, other = building, value = def index
+	CAPTURED,        # entity = depot, other = player, value = team
+	DEFEATED,        # other = player, value = team
+	VICTORY,         # value = winning team
+	OUT_OF_FUEL,     # entity = unit
 }
 
 var kind: Type

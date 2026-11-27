@@ -40,3 +40,21 @@ func apply(world: SimWorld) -> void:
 
 func type_id() -> StringName:
 	return &"move"
+
+
+func write(buf: StreamPeerBuffer) -> void:
+	write_ids(buf)
+	buf.put_64(x_mm)
+	buf.put_64(y_mm)
+	buf.put_u8(mode)
+	buf.put_u8(int(queue) | (int(safe) << 1))
+
+
+func read(buf: StreamPeerBuffer) -> void:
+	read_ids(buf)
+	x_mm = buf.get_64()
+	y_mm = buf.get_64()
+	mode = buf.get_u8()
+	var f: int = buf.get_u8()
+	queue = (f & 1) != 0
+	safe = (f & 2) != 0

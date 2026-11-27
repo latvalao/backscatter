@@ -50,13 +50,32 @@ var eye_height_mm: int = 1700
 var target_height_mm: int = 1000
 
 var morale: int = 700
+## Building role that produces this unit ("barracks", "motor_pool", ...);
+## for structures: "engineer", "infantry" or "none" (placed by scenario only).
+var built_at: String = ""
+var fuel_capacity: int = 0      # mL; 0 = no fuel needed (infantry)
+var fuel_per_km: int = 0        # mL per km
+var cargo_capacity: int = 0     # SUPPLY a logistics vehicle can carry
+
+# --- structures ---
+var is_structure: bool = false
+var footprint_w: int = 0        # cells
+var footprint_h: int = 0
+## Bitmask of mobility classes (1 << TerrainTable.FOOT etc.) the footprint blocks.
+var blocks_mask: int = 0
+## Cover permille for infantry inside the footprint (trench), or hull-down for vehicles.
+var cover: int = 0
 var smoke_charges: int = 0
 var weapons: PackedInt32Array = PackedInt32Array()
 var abilities: PackedStringArray = PackedStringArray()
 
 
 func is_vehicle() -> bool:
-	return not is_infantry
+	return not is_infantry and not is_structure
+
+
+func has_ability(a: String) -> bool:
+	return abilities.has(a)
 
 
 func has_crew(slot: int) -> bool:

@@ -64,10 +64,19 @@ static func hit_chance(world: SimWorld, shooter: int, target: int, w: WeaponStat
 	acc = acc * [700, 1000, 1150][td.size_class] / 1000
 	if world.mobility.has(target) and absi(world.mobility.speed[target]) * 10 > td.max_speed:
 		acc = acc * 850 / 1000
-	if td.is_infantry:
-		var cover: int = TerrainTable.COVER[world.grid.terrain_at(world.transform.x[target], world.transform.y[target])]
-		acc = acc * (1000 - cover) / 1000
+	acc = acc * (1000 - infantry_cover(world, target, td)) / 1000
+	if td.is_vehicle():
+		acc = acc * (1000 - world.fortification_cover(world.transform.x[target], world.transform.y[target], false)) / 1000
 	return clampi(acc, 10, 970)
+
+
+## Effective cover permille for an infantry target (terrain or trench, whichever is better).
+static func infantry_cover(world: SimWorld, target: int, td: UnitStats) -> int:
+	if not td.is_infantry:
+		return 0
+	var x: int = world.transform.x[target]
+	var y: int = world.transform.y[target]
+	return maxi(TerrainTable.COVER[world.grid.terrain_at(x, y)], world.fortification_cover(x, y, true))
 
 
 ## Direct/ATGM hit on target from position (sx, sy).
@@ -80,7 +89,7 @@ static func apply_hit(world: SimWorld, target: int, w: WeaponStats, sx: int, sy:
 	u.last_attacker[target] = shooter
 	if td.is_infantry:
 		var hits: int = 1 + w.blast_radius_mm / 3000
-		var cover: int = TerrainTable.COVER[world.grid.terrain_at(world.transform.x[target], world.transform.y[target])]
+		var cover: int = infantry_cover(world, target, td)
 		for i: int in range(hits):
 			_wound_random_member(world, target, w.inf_damage * (1000 - cover / 2) / 1000, shooter)
 		add_suppression(world, target, w.suppression)
@@ -95,17 +104,18 @@ static func _hit_vehicle(world: SimWorld, target: int, td: UnitStats, pen: int, 
 	if penetrates(pen, armour):
 		var roll: int = world.rng.range_int(800, 1300)
 		u.hp[target] -= dmg * roll / 1000
-		if world.rng.chance_permille(300):
-			u.damage[target] |= 1 << world.rng.range_int(0, 3)
-		if world.rng.chance_permille(350):
-			_kill_random_crew(world, target)
+		if not td.is_structure:
+			if world.rng.chance_permille(300):
+				u.damage[target] |= 1 << world.rng.range_int(0, 3)
+			if world.rng.chance_permille(350):
+				_kill_random_crew(world, target)
 		add_suppression(world, target, supp)
 		world.emit(SimEvent.Type.PENETRATED, target, shooter, face)
 	else:
 		u.hp[target] -= dmg / 20
 		add_suppression(world, target, supp / 2)
 		world.emit(SimEvent.Type.BOUNCED, target, shooter, face)
-	if u.hp[target] <= 0 or u.crew[target] == 0:
+	if u.hp[target] <= 0 or (td.crew_slots != 0 and u.crew[target] == 0):
 		_credit_kill(world, shooter)
 		world.destroy_entity(target)
 
@@ -180,7 +190,7 @@ static func apply_blast(world: SimWorld, x: int, y: int, w: WeaponStats, shooter
 		if d > r:
 			continue
 		if td.is_infantry:
-			var cover: int = TerrainTable.COVER[world.grid.terrain_at(t.x[id], t.y[id])]
+			var cover: int = infantry_cover(world, id, td)
 			var chance: int = 1000 * (r - d) / r * (1000 - cover) / 1000
 			for m: int in range(world.units.members_alive[id]):
 				if world.rng.chance_permille(chance):

@@ -27,6 +27,16 @@ func type_id() -> StringName:
 	return &"base"
 
 
+## Override: write command-specific fields (header is written by CommandCodec).
+func write(_buf: StreamPeerBuffer) -> void:
+	pass
+
+
+## Override: read fields written by write().
+func read(_buf: StreamPeerBuffer) -> void:
+	pass
+
+
 static func compare(a: SimCommand, b: SimCommand) -> bool:
 	if a.player_id != b.player_id:
 		return a.player_id < b.player_id

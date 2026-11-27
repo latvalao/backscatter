@@ -73,3 +73,19 @@ func apply(world: SimWorld) -> void:
 
 func type_id() -> StringName:
 	return &"fire_mission"
+
+
+func write(buf: StreamPeerBuffer) -> void:
+	write_ids(buf)
+	buf.put_64(x_mm)
+	buf.put_64(y_mm)
+	buf.put_u8(rounds)
+	buf.put_u8(int(smoke))
+
+
+func read(buf: StreamPeerBuffer) -> void:
+	read_ids(buf)
+	x_mm = buf.get_64()
+	y_mm = buf.get_64()
+	rounds = buf.get_u8()
+	smoke = buf.get_u8() != 0

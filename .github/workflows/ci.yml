@@ -45,6 +45,9 @@ jobs:
           test ${PIPESTATUS[0]} -eq 0
           ! grep -q "SCRIPT ERROR" test.log
 
+      - name: Two-process lockstep over ENet
+        run: tools/net_selftest.sh ~/godot/godot
+
       - name: Scene smoke test
         run: |
           ~/godot/godot --headless --path . -s res://tests/smoke_scene.gd 2>&1 | tee smoke.log

@@ -1,12 +1,19 @@
-## Presentation-side driver: steps the SimWorld at a fixed 10 Hz from the frame
-## loop and exposes an interpolation factor. Floats are fine here — nothing in
-## this file feeds back into sim state.
+## Presentation-side driver: advances the match at a fixed 10 Hz from the frame
+## loop — through the Lockstep (live play, any number of peers) or a
+## ReplayPlayer — and exposes an interpolation factor. Floats are fine here:
+## nothing in this file feeds back into sim state.
 class_name SimRunner
 extends Node
 
 signal ticked(tick: int)
 
 var world: SimWorld
+## Live play: commands and ticks go through the lockstep.
+var lockstep: Lockstep
+## Replay viewing: ticks come from the replay instead.
+var replay: ReplayPlayer
+## True while the last frame could not advance because a peer's turn is missing.
+var waiting: bool = false
 ## Sim speed multiplier (single-player/co-op: 0 = paused, 1, 2, 4).
 var speed: int = 1
 ## Max ticks per frame, so a long hitch doesn't spiral.
@@ -24,13 +31,21 @@ var _accum_ms: float = 0.0
 
 
 func _process(delta: float) -> void:
-	if world == null or speed <= 0:
+	if world == null:
+		return
+	if lockstep != null:
+		lockstep.receive()
+	if speed <= 0:
 		return
 	_accum_ms += delta * 1000.0 * speed
 	var steps: int = 0
+	waiting = false
 	while _accum_ms >= SimConst.TICK_MS and steps < max_catch_up:
+		if not _step_once():
+			waiting = true
+			_accum_ms = minf(_accum_ms, float(SimConst.TICK_MS))
+			break
 		_accum_ms -= SimConst.TICK_MS
-		_step_once()
 		steps += 1
 	if steps == max_catch_up:
 		_accum_ms = minf(_accum_ms, float(SimConst.TICK_MS))
@@ -79,9 +94,19 @@ static func heading_to_yaw(h: int) -> float:
 	return float(h) / SimConst.ANGLE_FULL * TAU - PI * 0.5
 
 
-func _step_once() -> void:
+## Advances one tick if possible; false if waiting on peers / replay ended.
+func _step_once() -> bool:
 	var t0: int = Time.get_ticks_usec()
-	world.step()
+	var ok: bool = true
+	if replay != null:
+		ok = replay.step()
+	elif lockstep != null:
+		ok = lockstep.try_advance()
+	else:
+		world.step()
+	if not ok:
+		return false
 	last_tick_ms = (Time.get_ticks_usec() - t0) / 1000.0
 	snapshot()
 	ticked.emit(world.tick)
+	return true

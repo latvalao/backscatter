@@ -27,3 +27,17 @@ func apply(world: SimWorld) -> void:
 
 func type_id() -> StringName:
 	return &"spawn_unit"
+
+
+func write(buf: StreamPeerBuffer) -> void:
+	buf.put_utf8_string(unit_def)
+	buf.put_64(x_mm)
+	buf.put_64(y_mm)
+	buf.put_32(heading)
+
+
+func read(buf: StreamPeerBuffer) -> void:
+	unit_def = buf.get_utf8_string()
+	x_mm = buf.get_64()
+	y_mm = buf.get_64()
+	heading = buf.get_32()

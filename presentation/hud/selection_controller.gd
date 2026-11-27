@@ -1,42 +1,69 @@
 ## Mouse/keyboard command input (§8): click/box selection, right-click contextual
-## orders, attack-move / reverse / fire-mission modes, Shift queueing, control
-## groups. Produces SimCommands only — never touches sim state.
+## orders, attack-move / reverse / fire-mission / build-placement modes, Shift
+## queueing, control groups, production and rally points. Produces SimCommands
+## via the Lockstep only — never touches sim state.
 class_name SelectionController
 extends Control
 
-enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE }
+enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE }
 
-const CLICK_PICK_PX: float = 22.0
+const CLICK_PICK_PX: float = 24.0
 const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "REVERSE: left-click destination",
-	"FIRE MISSION (HE): left-click impact point", "FIRE MISSION (SMOKE): left-click impact point"]
+	"FIRE MISSION (HE): left-click impact point", "FIRE MISSION (SMOKE): left-click impact point",
+	"PLACE %s: left-click to build (Shift: keep placing), right-click cancels"]
 
 var runner: SimRunner
 var views: ViewSync
 var cam: RtsCamera
-var sink: LocalCommandSink
+var lockstep: Lockstep
+var enabled: bool = true
 var mode: Mode = Mode.NORMAL
 var selection: PackedInt32Array = PackedInt32Array()
 var groups: Dictionary = {}  # int -> PackedInt32Array
 var message: String = ""
+var place_def: UnitStats
+var panel: CommandPanel
 
 var _drag_start: Vector2 = Vector2.ZERO
 var _dragging: bool = false
 var _drag_now: Vector2 = Vector2.ZERO
+var _ghost: MeshInstance3D
+var _ghost_mat: StandardMaterial3D
+var _ghost_cell: Vector2i = Vector2i(-1, -1)
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel = CommandPanel.new()
+	panel.controller = self
+	add_child(panel)
+	_ghost = MeshInstance3D.new()
+	_ghost_mat = StandardMaterial3D.new()
+	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ghost.material_override = _ghost_mat
+	_ghost.visible = false
+	views.add_child(_ghost)
+
+
+func local_player() -> int:
+	return lockstep.local_player if lockstep != null else 0
+
+
+func submit(cmd: SimCommand) -> void:
+	if enabled and lockstep != null:
+		lockstep.submit(cmd)
 
 
 func _process(_delta: float) -> void:
-	# prune dead units
 	var keep: PackedInt32Array = PackedInt32Array()
 	for id: int in selection:
 		if runner.world.is_unit(id):
 			keep.append(id)
 	if keep.size() != selection.size():
 		_set_selection(keep)
+	_update_ghost()
 	queue_redraw()
 
 
@@ -48,6 +75,8 @@ func _draw() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not enabled:
+		return
 	var mb: InputEventMouseButton = event as InputEventMouseButton
 	if mb != null:
 		_mouse_button(mb)
@@ -78,7 +107,7 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 				_click_select(mb.position, mb.shift_pressed)
 	elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
 		if mode != Mode.NORMAL:
-			mode = Mode.NORMAL
+			set_mode(Mode.NORMAL)
 			return
 		_right_click(mb.position, mb.shift_pressed, mb.alt_pressed)
 
@@ -94,81 +123,158 @@ func _key(k: InputEventKey) -> void:
 			var grp: PackedInt32Array = groups[g]
 			_set_selection(grp)
 		return
+	if code >= KEY_F1 and code <= KEY_F8:
+		panel.press(code - KEY_F1)
+		return
 	if selection.is_empty():
 		return
 	match code:
 		KEY_A:
-			mode = Mode.ATTACK_MOVE
+			set_mode(Mode.ATTACK_MOVE)
 		KEY_R:
-			mode = Mode.REVERSE
+			set_mode(Mode.REVERSE)
 		KEY_F:
-			mode = Mode.FIRE_MISSION
+			set_mode(Mode.FIRE_MISSION)
 		KEY_G:
-			mode = Mode.FIRE_SMOKE
+			set_mode(Mode.FIRE_SMOKE)
 		KEY_S:
-			sink.submit(StopCommand.new(selection))
+			submit(StopCommand.new(selection))
 		KEY_X:
-			sink.submit(SmokeCommand.new(selection))
+			submit(SmokeCommand.new(selection))
 			message = "Smoke!"
 		KEY_H:
 			var hold: bool = runner.world.units.stance[selection[0]] != UnitStore.STANCE_HOLD_FIRE
-			sink.submit(StanceCommand.new(selection, UnitStore.STANCE_HOLD_FIRE if hold else UnitStore.STANCE_FIRE_AT_WILL))
+			submit(StanceCommand.new(selection, UnitStore.STANCE_HOLD_FIRE if hold else UnitStore.STANCE_FIRE_AT_WILL))
 			message = "Hold fire" if hold else "Fire at will"
-		KEY_ESCAPE:
-			mode = Mode.NORMAL
+
+
+func set_mode(m: Mode) -> void:
+	mode = m
+	if m != Mode.PLACE:
+		place_def = null
+		_ghost.visible = false
+
+
+func begin_placement(def: UnitStats) -> void:
+	place_def = def
+	set_mode(Mode.PLACE)
+
+
+func _placement_cell(pos: Vector2) -> Vector2i:
+	var gp: Variant = cam.ground_point(pos)
+	if gp == null or place_def == null:
+		return Vector2i(-1, -1)
+	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
+	return Vector2i(s.x / SimGrid.CELL_MM - place_def.footprint_w / 2, s.y / SimGrid.CELL_MM - place_def.footprint_h / 2)
+
+
+func _update_ghost() -> void:
+	if mode != Mode.PLACE or place_def == null:
+		_ghost.visible = false
+		return
+	var cell: Vector2i = _placement_cell(get_viewport().get_mouse_position())
+	if cell.x < 0:
+		_ghost.visible = false
+		return
+	var cm: float = SimGrid.CELL_MM * 0.001
+	var box: BoxMesh = _ghost.mesh as BoxMesh
+	if box == null:
+		box = BoxMesh.new()
+		_ghost.mesh = box
+	box.size = Vector3(place_def.footprint_w * cm, 4.0, place_def.footprint_h * cm)
+	var center: Vector3 = Vector3((cell.x + place_def.footprint_w * 0.5) * cm, 0, -(cell.y + place_def.footprint_h * 0.5) * cm)
+	center.y = cam.terrain.height_at(center) + 2.0
+	_ghost.position = center
+	var ok: bool = ConstructionSystem.can_place(runner.world, place_def, cell.x, cell.y)
+	var affordable: bool = runner.world.players.supply[local_player()] >= place_def.cost_supply
+	_ghost_mat.albedo_color = Color(0.3, 1.0, 0.4, 0.45) if ok and affordable else Color(1.0, 0.3, 0.25, 0.45)
+	_ghost.visible = true
+	_ghost_cell = cell
 
 
 func _mode_click(pos: Vector2, shift: bool) -> void:
+	if mode == Mode.PLACE:
+		var cell: Vector2i = _placement_cell(pos)
+		if cell.x >= 0 and place_def != null:
+			if not ConstructionSystem.can_place(runner.world, place_def, cell.x, cell.y):
+				message = "Can't build there"
+				return
+			submit(BuildCommand.new(_builders(), place_def.id, cell.x, cell.y))
+			message = "Building %s" % place_def.display_name
+		if not shift:
+			set_mode(Mode.NORMAL)
+		return
 	var gp: Variant = cam.ground_point(pos)
 	if gp == null:
 		return
 	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
 	match mode:
 		Mode.ATTACK_MOVE:
-			sink.submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_ATTACK_MOVE, shift))
+			submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_ATTACK_MOVE, shift))
 		Mode.REVERSE:
-			sink.submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_REVERSE, shift))
+			submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_REVERSE, shift))
 		Mode.FIRE_MISSION, Mode.FIRE_SMOKE:
 			var smoke: bool = mode == Mode.FIRE_SMOKE
-			var cmd: FireMissionCommand = FireMissionCommand.new(selection, s.x, s.y, 3 if smoke else 6, smoke)
-			cmd.player_id = sink.player_id
 			if not FireMissionCommand.is_observed(runner.world, views.local_team, s.x, s.y):
 				message = "No observer has eyes on that point"
 			else:
-				sink.submit(cmd)
+				submit(FireMissionCommand.new(selection, s.x, s.y, 3 if smoke else 6, smoke))
 				message = "Fire mission sent"
 	if not shift:
-		mode = Mode.NORMAL
+		set_mode(Mode.NORMAL)
 
 
 func _right_click(pos: Vector2, shift: bool, alt: bool) -> void:
 	if selection.is_empty():
 		return
-	var enemy: int = _pick_unit(pos, false)
-	if enemy > 0:
-		sink.submit(AttackCommand.new(selection, enemy))
-		return
 	var gp: Variant = cam.ground_point(pos)
+	# a selected production building: right-click sets its rally point
+	if selection.size() == 1 and runner.world.is_structure(selection[0]):
+		if gp != null:
+			var r: Vector2i = SimRunner.view_to_sim(gp as Vector3)
+			submit(RallyCommand.new(selection[0], r.x, r.y))
+			message = "Rally point set"
+		return
+	var enemy: int = _pick_unit(pos, false)
+	if enemy > 0 and runner.world.units.team[enemy] != SimWorld.NEUTRAL_TEAM:
+		submit(AttackCommand.new(selection, enemy))
+		return
 	if gp == null:
 		return
 	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
 	var m: int = MoveCommand.MODE_REVERSE if alt else MoveCommand.MODE_MOVE
-	sink.submit(MoveCommand.new(selection, s.x, s.y, m, shift))
+	submit(MoveCommand.new(selection, s.x, s.y, m, shift))
 
 
-## Nearest shown unit to a screen point: own units (own=true) or visible enemies.
+## Units in the selection that can build the structure being placed.
+func _builders() -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	if place_def == null:
+		return out
+	for id: int in selection:
+		if not runner.world.is_unit(id) or runner.world.is_structure(id):
+			continue
+		var d: UnitStats = runner.world.def_of(id)
+		if (place_def.built_at == "engineer" and d.has_ability("build")) \
+				or (place_def.built_at == "infantry" and (d.has_ability("dig_in") or d.has_ability("build"))):
+			out.append(id)
+	return out
+
+
+## Nearest shown unit/structure to a screen point: own (own=true) or others.
 func _pick_unit(pos: Vector2, own: bool) -> int:
 	var best: int = 0
-	var best_d: float = CLICK_PICK_PX
+	var best_d: float = INF
 	for v: Variant in views.all_views():
 		var uv: UnitView = v as UnitView
 		if not uv.visible or (uv.team == views.local_team) != own:
 			continue
 		if cam.camera.is_position_behind(uv.global_position):
 			continue
-		var sp: Vector2 = cam.camera.unproject_position(uv.global_position + Vector3.UP)
+		var sp: Vector2 = cam.camera.unproject_position(uv.global_position + Vector3.UP * 2.0)
+		var reach: float = CLICK_PICK_PX * (2.0 if uv.def.is_structure else 1.0)
 		var d: float = sp.distance_to(pos)
-		if d < best_d:
+		if d < reach and d < best_d:
 			best_d = d
 			best = uv.entity_id
 	return best
@@ -177,7 +283,7 @@ func _pick_unit(pos: Vector2, own: bool) -> int:
 func _click_select(pos: Vector2, add: bool) -> void:
 	var id: int = _pick_unit(pos, true)
 	var sel: PackedInt32Array = selection.duplicate() if add else PackedInt32Array()
-	if id > 0 and not sel.has(id):
+	if id > 0 and runner.world.units.owner[id] == local_player() and not sel.has(id):
 		sel.append(id)
 	_set_selection(sel)
 
@@ -186,7 +292,9 @@ func _box_select(r: Rect2, add: bool) -> void:
 	var sel: PackedInt32Array = selection.duplicate() if add else PackedInt32Array()
 	for v: Variant in views.all_views():
 		var uv: UnitView = v as UnitView
-		if uv.team != views.local_team or cam.camera.is_position_behind(uv.global_position):
+		if uv.team != views.local_team or uv.def.is_structure or cam.camera.is_position_behind(uv.global_position):
+			continue
+		if runner.world.units.owner[uv.entity_id] != local_player():
 			continue
 		if r.has_point(cam.camera.unproject_position(uv.global_position + Vector3.UP)) and not sel.has(uv.entity_id):
 			sel.append(uv.entity_id)
@@ -199,7 +307,11 @@ func _set_selection(ids: PackedInt32Array) -> void:
 	views.selected.clear()
 	for id: int in selection:
 		views.selected[id] = true
+	if panel != null:
+		panel.rebuild()
 
 
 func mode_text() -> String:
+	if mode == Mode.PLACE and place_def != null:
+		return MODE_NAMES[mode] % place_def.display_name
 	return MODE_NAMES[mode]

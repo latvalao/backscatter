@@ -16,6 +16,8 @@ const MAX_FACTOR: int = 1600
 func step(world: SimWorld, tick: int) -> void:
 	world.rebuild_team_rosters()
 	for team: int in range(SimWorld.MAX_TEAMS):
+		if team == SimWorld.NEUTRAL_TEAM:
+			continue
 		for obs: int in world.team_units[team]:
 			if (obs + tick) % INTERVAL != 0:
 				continue
@@ -27,6 +29,8 @@ func step(world: SimWorld, tick: int) -> void:
 static func observer_ranges(world: SimWorld, obs: int) -> Vector2i:
 	var def: UnitStats = world.def_of(obs)
 	var u: UnitStore = world.units
+	if world.is_structure(obs) and not world.structures.is_complete(obs):
+		return Vector2i(0, 0)
 	var optical: int = def.vision_night_mm if world.is_night else def.vision_day_mm
 	var thermal: int = def.vision_thermal_mm
 	var mult: int = 1000
@@ -42,6 +46,9 @@ static func target_factor(world: SimWorld, target: int, tick: int) -> int:
 	var def: UnitStats = world.def_of(target)
 	var t: TransformStore = world.transform
 	var f: int = def.visibility * TerrainTable.CONCEAL[world.grid.terrain_at(t.x[target], t.y[target])] / 1000
+	var fort: int = world.fortification_cover(t.x[target], t.y[target], def.is_infantry)
+	if fort > 0:
+		f = f * (1000 - fort / 2) / 1000
 	if world.mobility.has(target) and world.mobility.speed[target] != 0:
 		f = f * MOVING_FACTOR / 1000
 	if tick - world.units.last_fired_tick[target] <= FIRED_REVEAL_TICKS:
@@ -58,7 +65,7 @@ func _scan(world: SimWorld, obs: int, team: int, tick: int) -> void:
 	var oy: int = t.y[obs]
 	var until: int = tick + INTERVAL + 1
 	for other_team: int in range(SimWorld.MAX_TEAMS):
-		if other_team == team:
+		if not world.is_enemy_team(team, other_team):
 			continue
 		for tgt: int in world.team_units[other_team]:
 			_consider(world, obs, tgt, ox, oy, reach, ranges, layer, until, tick)

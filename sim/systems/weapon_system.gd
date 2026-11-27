@@ -138,6 +138,10 @@ static func effectiveness(world: SimWorld, w: WeaponStats, shooter: int, tgt: in
 			e /= 4
 		return e
 	var t: TransformStore = world.transform
+	if td.is_structure:
+		if w.penetration < td.armour_side or w.damage < 50:
+			return 0
+		return 300 + mini(300, w.damage * 300 / maxi(1, td.hp))
 	var face: int = Combat.facing(t.heading[tgt], t.x[tgt], t.y[tgt], t.x[shooter], t.y[shooter])
 	var armour: int = Combat.armour_for(td, face)
 	if Combat.penetrates(w.penetration, armour):

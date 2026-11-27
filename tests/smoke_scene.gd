@@ -1,11 +1,13 @@
-## Boots the main scene headless and runs it for a while (sim at 4×) so runtime
-## errors in presentation code surface in CI. Exit 1 if the scene fails to load.
+## Boots the menu, then a skirmish GameScene and a sandbox GameScene headless,
+## running each for a while (sim at 4x) so runtime errors in presentation code
+## surface in CI.
 ##   godot --headless --path . -s res://tests/smoke_scene.gd
 extends SceneTree
 
-const FRAMES: int = 240
+const FRAMES: int = 160
 
 var _frame: int = 0
+var _phase: int = 0
 var _scene: Node
 
 
@@ -21,13 +23,42 @@ func _initialize() -> void:
 
 func _process(_delta: float) -> bool:
 	_frame += 1
-	if _frame == 2:
-		var runner: SimRunner = _scene.get("runner") as SimRunner
-		if runner != null:
-			runner.speed = 4
-			runner.max_catch_up = 1
-	if _frame >= FRAMES:
-		var runner2: SimRunner = _scene.get("runner") as SimRunner
-		print("smoke: %d frames, sim tick %d" % [_frame, runner2.world.tick if runner2 != null else -1])
+	if _phase == 0 and _frame == 3:
+		_scene.queue_free()
+		var s: MatchSettings = MatchSettings.default_skirmish()
+		s.map_cells = 300
+		_start(GameScene.create_offline(s))
+	elif _phase == 1 and _frame == FRAMES:
+		_report()
+		_scene.queue_free()
+		var s2: MatchSettings = MatchSettings.new()
+		s2.mode = "sandbox"
+		s2.add_player("P", 0, "nc", false)
+		s2.add_player("AI", 1, "ec", true)
+		_start(GameScene.create_offline(s2))
+	elif _phase == 2 and _frame == FRAMES:
+		_report()
 		quit(0)
+		return true
 	return false
+
+
+func _start(g: GameScene) -> void:
+	_scene = g
+	root.add_child(g)
+	g.runner.speed = 4
+	g.runner.max_catch_up = 1
+	# exercise the UI paths: select own units, open the build/produce panel
+	var w: SimWorld = g.runner.world
+	var mine: PackedInt32Array = PackedInt32Array()
+	for id: int in w.entities.ids():
+		if w.units.has(id) and w.units.owner[id] == 0:
+			mine.append(id)
+	g.controller._set_selection(mine)
+	_phase += 1
+	_frame = 0
+
+
+func _report() -> void:
+	var g: GameScene = _scene as GameScene
+	print("smoke: %s %d frames, sim tick %d" % [g.settings.mode, _frame, g.runner.world.tick])

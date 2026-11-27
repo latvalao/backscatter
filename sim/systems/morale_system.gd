@@ -16,6 +16,8 @@ func step(world: SimWorld, tick: int) -> void:
 		if not world.is_unit(id):
 			continue
 		var def: UnitStats = world.def_of(id)
+		if def.is_structure:
+			continue
 		var quiet: bool = tick - u.last_hit_tick[id] > QUIET_TICKS
 		var s: int = u.suppression[id]
 		if s > 0:

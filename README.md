@@ -10,13 +10,20 @@ Realistic West-vs-East RTS in a radioactive exclusion zone. Godot 4 · PC.
 Requires Godot **4.5.1**.
 
 ```bash
-godot --path .                 # sandbox: you command the Coalition battle group vs a scripted Eastern force
+godot --path .                 # main menu: skirmish vs AI, sandbox, LAN host/join, Steam lobby, replays
 ```
+
+Skirmish: you start with an HQ, an engineer, a supply truck and a few units. Select the
+engineer to build (barracks, motor pool, supply depot…), select a finished building to
+produce units (right-click sets the rally point), take the depots on the roads for income,
+and destroy the enemy HQ. LAN games use UDP port 27960. Steam play needs the GodotSteam
+addon (see `net/transport/steam_transport.gd`).
 
 Controls: LMB select / box, RMB move or attack, Shift queue, Alt+RMB reverse, A attack-move,
 R reverse, F fire mission, G smoke mission, X smoke launchers, S stop, H hold fire,
 Ctrl+1–9 / 1–9 groups, arrows / screen edge / MMB pan, wheel zoom, Q/E rotate,
-PgUp/PgDn pitch, P pause, +/- speed, F9 reveal map, F10 labels.
+PgUp/PgDn pitch, F1–F8 build/produce buttons, P pause, +/- speed, F9 reveal map (solo),
+F10 labels, F12 save replay, Esc menu.
 
 ## Tests
 
@@ -26,7 +33,8 @@ godot --headless --path . --import                      # first time: build clas
 godot --headless --path . -s res://tests/run.gd         # all tests
 godot --headless --path . -s res://tests/run.gd -- --filter=determinism
 godot --headless --path . -s res://tools/check_scripts.gd     # compile every script
-godot --headless --path . -s res://tests/smoke_scene.gd       # boot the sandbox headless
+godot --headless --path . -s res://tests/smoke_scene.gd       # boot menu + skirmish + sandbox headless
+tools/net_selftest.sh godot                                   # two processes, lockstep over ENet
 ```
 
 ## Layout

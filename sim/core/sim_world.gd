@@ -3,20 +3,23 @@
 ##
 ## Tick order (design doc §7.5):
 ##   1. Apply commands (sorted by player id, then sequence)
-##   2. AI planning                      (M7)
+##   2. AI planning                      -> AiSystem (scripted opponents until M7)
 ##   3. Orders -> movement               -> MovementSystem
 ##   4. Vision & spotting                -> VisionSystem
 ##   5. Signature / DF / jamming         (M6)
 ##   6. Weapons + projectiles            -> WeaponSystem, ProjectileSystem
 ##   7. Damage, suppression, morale      -> MoraleSystem (damage applied inline via Combat)
 ##   8. Radiation                        (M5)
-##   9. Logistics / production           (M4)
-##  10. Veterancy, cleanup, events       -> _cleanup()
+##   9. Logistics / production           -> ConstructionSystem, ProductionSystem,
+##                                          ObjectiveSystem, LogisticsSystem
+##  10. Veterancy, cleanup, events       -> VictorySystem, _cleanup()
 ##  11. Checksum every CHECKSUM_INTERVAL ticks
 class_name SimWorld
 extends RefCounted
 
 const MAX_TEAMS: int = 4
+## Map objectives (depots) belong to this team: never targeted, visible to all.
+const NEUTRAL_TEAM: int = 3
 
 var tick: int = 0
 var match_seed: int = 0
@@ -34,12 +37,21 @@ var mobility: MobilityStore = MobilityStore.new()
 var orders: OrderStore = OrderStore.new()
 var weapons: WeaponStore = WeaponStore.new()
 var squads: SquadStore = SquadStore.new()
+var structures: StructureStore = StructureStore.new()
+var logistics: LogisticsStore = LogisticsStore.new()
+var players: PlayerStore = PlayerStore.new()
+## Structure id occupying each grid cell (0 = none). Derived from structures.
+var occupancy: PackedInt32Array = PackedInt32Array()
+## Sim-side AI controllers, stepped in phase 2 in list order.
+var ai: Array[AiController] = []
+## Skirmish rule: a team with no HQ is defeated.
+var hq_required: bool = false
+## Winning team once decided (-1 = ongoing).
+var winner_team: int = -1
 var vision: Array[TeamVision] = []
 var projectiles: ProjectileStore = ProjectileStore.new()
 var smoke: SmokeStore = SmokeStore.new()
 
-## player id -> team
-var player_team: PackedInt32Array = PackedInt32Array()
 var is_night: bool = false
 
 ## Flow fields shared by group move orders; id -> FlowField (lookup only).
@@ -68,35 +80,46 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 	match_seed = p_seed
 	rng = SimRng.new(p_seed)
 	defs = p_defs
-	grid = p_grid
+	grid = p_grid.clone()
+	occupancy.resize(grid.cell_count())
 	pathfinder = PathFinder.new(grid)
 	spatial = SpatialHash.new(grid.width_mm(), grid.height_mm())
 	for t: int in range(MAX_TEAMS):
 		vision.append(TeamVision.new())
 		team_units.append(PackedInt32Array())
 		visible_enemies.append(PackedInt32Array())
+	_systems.append(AiSystem.new())          # 2
 	_systems.append(MovementSystem.new())    # 3
 	_systems.append(VisionSystem.new())      # 4
 	_systems.append(WeaponSystem.new())      # 6
 	_systems.append(ProjectileSystem.new())  # 6
 	_systems.append(MoraleSystem.new())      # 7
+	_systems.append(ConstructionSystem.new())  # 9
+	_systems.append(ProductionSystem.new())    # 9
+	_systems.append(ObjectiveSystem.new())     # 9
+	_systems.append(LogisticsSystem.new())     # 9
+	_systems.append(VictorySystem.new())       # 10
 
 
 ## Fixed component store order — part of the checksum definition.
 func component_stores() -> Array[ComponentStore]:
-	var out: Array[ComponentStore] = [transform, units, mobility, orders, weapons, squads]
+	var out: Array[ComponentStore] = [transform, units, mobility, orders, weapons, squads, structures, logistics]
 	return out
 
 
-func add_player(team: int) -> int:
-	player_team.append(team)
-	return player_team.size() - 1
+## Adds a player. Faction defaults by team (0 = Coalition, else Eastern).
+func add_player(team: int, faction: String = "", is_ai: bool = false) -> int:
+	if faction == "":
+		faction = "nc" if team == 0 else "ec"
+	var sup: int = defs.rules.get("start_supply", 0)
+	var mp: int = defs.rules.get("start_manpower", 0)
+	return players.add(team, faction, sup, mp, is_ai)
 
 
 func team_of_player(player: int) -> int:
-	if player < 0 or player >= player_team.size():
+	if player < 0 or player >= players.count():
 		return -1
-	return player_team[player]
+	return players.team[player]
 
 
 func map_width_mm() -> int:
@@ -117,6 +140,29 @@ func def_of(id: int) -> UnitStats:
 
 func is_unit(id: int) -> bool:
 	return entities.is_alive(id) and units.has(id) and not is_dying(id)
+
+
+func is_structure(id: int) -> bool:
+	return structures.has(id)
+
+
+## Teams that are opponents of `team` (excludes itself and the neutral team).
+func is_enemy_team(team: int, other: int) -> bool:
+	return other != team and other != NEUTRAL_TEAM and team != NEUTRAL_TEAM
+
+
+## Cover permille from a fortification at (x, y): trenches for infantry,
+## vehicle pits for vehicles. 0 if none / still under construction.
+func fortification_cover(x_mm: int, y_mm: int, infantry: bool) -> int:
+	var s: int = occupancy[grid.cell_at(x_mm, y_mm)]
+	if s == 0 or not structures.is_complete(s):
+		return 0
+	var d: UnitStats = def_of(s)
+	if infantry and d.role == "trench":
+		return d.cover
+	if not infantry and d.role == "vehicle_pit":
+		return d.cover
+	return 0
 
 
 func is_dying(id: int) -> bool:
@@ -170,20 +216,64 @@ func spawn_unit(def: UnitStats, team: int, owner: int, x_mm: int, y_mm: int, hea
 	if cell != grid.cell_at(x_mm, y_mm):
 		x_mm = grid.center_x(cell)
 		y_mm = grid.center_y(cell)
-	var id: int = entities.create()
-	var cap: int = entities.capacity()
-	_dying.resize(cap)
-	for v: TeamVision in vision:
-		v.ensure_capacity(cap)
+	assert(not def.is_structure, "use spawn_structure")
+	var id: int = _new_entity()
 	transform.add(id, x_mm, y_mm, grid.ground_at(x_mm, y_mm), heading)
 	units.add(id, def, team, owner)
 	mobility.add(id, def.mobility_class)
 	orders.add(id)
 	weapons.add(id, def, defs)
+	logistics.add(id, def)
 	if def.is_infantry:
 		squads.add(id, def)
 	vision[team].mark_seen(id, x_mm, y_mm, tick, 0x3FFFFFFF)
 	emit(SimEvent.Type.SPAWNED, id, 0, def.index, x_mm, y_mm)
+	return id
+
+
+func _new_entity() -> int:
+	var id: int = entities.create()
+	var cap: int = entities.capacity()
+	_dying.resize(cap)
+	for v: TeamVision in vision:
+		v.ensure_capacity(cap)
+	return id
+
+
+## Footprint cells of a structure def placed with origin (cx, cy).
+func footprint_cells(def: UnitStats, cx: int, cy: int) -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	for y: int in range(cy, cy + def.footprint_h):
+		for x: int in range(cx, cx + def.footprint_w):
+			if grid.in_grid(x, y):
+				out.append(grid.index(x, y))
+	return out
+
+
+## Places a structure (complete or as a construction site). Caller validates placement.
+func spawn_structure(def: UnitStats, team: int, owner: int, cx: int, cy: int, complete: bool) -> int:
+	assert(def.is_structure)
+	var id: int = _new_entity()
+	var x: int = cx * SimGrid.CELL_MM + def.footprint_w * SimGrid.CELL_MM / 2
+	var y: int = cy * SimGrid.CELL_MM + def.footprint_h * SimGrid.CELL_MM / 2
+	transform.add(id, x, y, grid.ground_at(x, y), 0)
+	units.add(id, def, team, owner)
+	weapons.add(id, def, defs)
+	structures.add(id, cx, cy, 0 if complete else maxi(1, def.build_time_ticks * 100),
+		x, y - (def.footprint_h * SimGrid.CELL_MM / 2 + 16000))
+	if not complete:
+		units.hp[id] = maxi(1, def.hp / 10)
+	var cells: PackedInt32Array = footprint_cells(def, cx, cy)
+	for c: int in cells:
+		occupancy[c] = id
+	if def.blocks_mask != 0:
+		grid.set_blocked_cells(cells, def.blocks_mask)
+	if team == NEUTRAL_TEAM:
+		for v: TeamVision in vision:
+			v.mark_seen(id, x, y, tick, 0x3FFFFFFF)
+	else:
+		vision[team].mark_seen(id, x, y, tick, 0x3FFFFFFF)
+	emit(SimEvent.Type.SPAWNED, id, 0, def.index, x, y)
 	return id
 
 
@@ -218,6 +308,8 @@ func rebuild_visible_enemies() -> void:
 		for o: int in range(MAX_TEAMS):
 			if o == t:
 				continue
+			if not is_enemy_team(t, o):
+				continue
 			for id: int in team_units[o]:
 				if layer.is_visible(id, tick) and is_unit(id):
 					out.append(id)
@@ -237,6 +329,8 @@ func request_path(id: int) -> void:
 
 
 func release_flow(id: int) -> void:
+	if not orders.has(id):
+		return
 	var fid: int = orders.flow_id[id]
 	if fid == 0:
 		return
@@ -265,6 +359,14 @@ func _cleanup() -> void:
 			continue
 		release_flow(id)
 		var owner_team: int = units.team[id] if units.has(id) else 0
+		if structures.has(id):
+			var sd: UnitStats = def_of(id)
+			var cells: PackedInt32Array = footprint_cells(sd, structures.cell_x[id], structures.cell_y[id])
+			for c: int in cells:
+				if occupancy[c] == id:
+					occupancy[c] = 0
+			if sd.blocks_mask != 0:
+				grid.set_blocked_cells(cells, 0)
 		for store: ComponentStore in component_stores():
 			store.remove(id)
 		entities.destroy(id)

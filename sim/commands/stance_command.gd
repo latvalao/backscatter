@@ -22,3 +22,13 @@ func apply(world: SimWorld) -> void:
 
 func type_id() -> StringName:
 	return &"stance"
+
+
+func write(buf: StreamPeerBuffer) -> void:
+	write_ids(buf)
+	buf.put_u8(stance)
+
+
+func read(buf: StreamPeerBuffer) -> void:
+	read_ids(buf)
+	stance = buf.get_u8()

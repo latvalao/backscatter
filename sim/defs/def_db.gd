@@ -4,6 +4,8 @@ class_name DefDb
 extends RefCounted
 
 var units: Array[UnitStats] = []
+## Integer economy/rules tunables from data/rules/*.json.
+var rules: Dictionary = {}  # String -> int (lookup only)
 var weapons: Array[WeaponStats] = []
 var _unit_index: Dictionary = {}    # String -> int (lookup only)
 var _weapon_index: Dictionary = {}
@@ -27,6 +29,29 @@ func unit_index(id: String) -> int:
 
 func weapon_index(id: String) -> int:
 	return _weapon_index.get(id, -1)
+
+
+func rule(name: String) -> int:
+	assert(rules.has(name), "missing rule " + name)
+	return rules[name]
+
+
+## Unit defs a building role can produce for a faction, in data order.
+func producible(building_role: String, faction: String) -> Array[UnitStats]:
+	var out: Array[UnitStats] = []
+	for u: UnitStats in units:
+		if not u.is_structure and u.built_at == building_role and u.faction == faction:
+			out.append(u)
+	return out
+
+
+## Structures an engineer (or infantry, for "infantry") can build.
+func buildable(builder: String) -> Array[UnitStats]:
+	var out: Array[UnitStats] = []
+	for u: UnitStats in units:
+		if u.is_structure and u.built_at == builder:
+			out.append(u)
+	return out
 
 
 func unit(id: String) -> UnitStats:

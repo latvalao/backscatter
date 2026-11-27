@@ -23,8 +23,14 @@ func _initialize() -> void:
 			_zoom = a.substr(7).to_float()
 		elif a.begins_with("--focus="):
 			_focus = a.substr(8)
-	var packed: PackedScene = load("res://main.tscn") as PackedScene
-	_scene = packed.instantiate()
+	var st: MatchSettings = MatchSettings.default_skirmish()
+	for a2: String in OS.get_cmdline_user_args():
+		if a2 == "--sandbox":
+			st = MatchSettings.new()
+			st.mode = "sandbox"
+			st.add_player("P", 0, "nc", false)
+			st.add_player("AI", 1, "ec", true)
+	_scene = GameScene.create_offline(st)
 	root.add_child(_scene)
 
 
@@ -46,7 +52,7 @@ func _process(_delta: float) -> bool:
 		var ctl: SelectionController = _scene.get("controller") as SelectionController
 		var sel: PackedInt32Array = PackedInt32Array()
 		for id: int in runner.world.entities.ids():
-			if runner.world.units.has(id) and runner.world.units.owner[id] == 0 and sel.size() < 6:
+			if runner.world.units.has(id) and runner.world.units.owner[id] == 0 and sel.size() < 6 and not runner.world.is_structure(id):
 				sel.append(id)
 		ctl._set_selection(sel)
 	if _frame >= _frames:

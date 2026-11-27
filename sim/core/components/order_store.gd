@@ -10,7 +10,8 @@ const ATTACK_MOVE: int = 2
 const ATTACK: int = 3
 const FIRE_MISSION: int = 4
 const RETREAT: int = 5
-const NAMES: Array[String] = ["idle", "move", "attack-move", "attack", "fire mission", "retreat"]
+const BUILD: int = 6
+const NAMES: Array[String] = ["idle", "move", "attack-move", "attack", "fire mission", "retreat", "build"]
 
 const FLAG_REVERSE: int = 1
 const FLAG_SAFE: int = 2

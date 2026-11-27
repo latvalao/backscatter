@@ -1,6 +1,7 @@
 # SIM: deterministic — no floats, no Nodes
-## Navigation / terrain grid (8 m cells). Static for a match (built from the map).
-## Also holds the derived sector cost table used by hierarchical pathfinding.
+## Navigation / terrain grid (8 m cells). Terrain is static for a match; structures
+## add per-cell blocking (`blocked`, a mask of mobility classes) at runtime.
+## Also holds the derived per-mobility step costs and sector cost table.
 class_name SimGrid
 extends RefCounted
 
@@ -15,6 +16,8 @@ var height: int = 0
 ## Ground height per cell (mm).
 var ground_mm: PackedInt32Array = PackedInt32Array()
 var terrain: PackedByteArray = PackedByteArray()
+## Bit (1 << mobility) set = impassable for that class because of a structure.
+var blocked: PackedByteArray = PackedByteArray()
 
 var sectors_x: int = 0
 var sectors_y: int = 0
@@ -31,6 +34,7 @@ func _init(p_width: int = 1, p_height: int = 1) -> void:
 	ground_mm.resize(width * height)
 	terrain.resize(width * height)
 	terrain.fill(TerrainTable.FIELD)
+	blocked.resize(width * height)
 
 
 func cell_count() -> int:
@@ -84,7 +88,48 @@ func ground_at(x_mm: int, y_mm: int) -> int:
 
 
 func speed(mobility: int, i: int) -> int:
+	if (blocked[i] & (1 << mobility)) != 0:
+		return 0
 	return TerrainTable.SPEED[mobility * TerrainTable.COUNT + terrain[i]]
+
+
+## Independent copy (each world mutates its own grid when structures are built).
+func clone() -> SimGrid:
+	var g: SimGrid = SimGrid.new(1, 1)
+	g.width = width
+	g.height = height
+	g.ground_mm = ground_mm.duplicate()
+	g.terrain = terrain.duplicate()
+	g.blocked = blocked.duplicate()
+	g.sectors_x = sectors_x
+	g.sectors_y = sectors_y
+	g.sector_cost = sector_cost.duplicate()
+	for mc: PackedInt32Array in move_cost:
+		g.move_cost.append(mc.duplicate())
+	return g
+
+
+## Sets the structure-blocking mask of cells and refreshes derived costs/sectors.
+func set_blocked_cells(cells: PackedInt32Array, mask: int) -> void:
+	var dirty: PackedInt32Array = PackedInt32Array()
+	for i: int in cells:
+		if blocked[i] == mask:
+			continue
+		_set_blocked(i, mask)
+		var sec: int = sector_of(i)
+		if not dirty.has(sec):
+			dirty.append(sec)
+	dirty.sort()
+	for sec: int in dirty:
+		_rebuild_sector(sec)
+
+
+func _set_blocked(i: int, mask: int) -> void:
+	blocked[i] = mask
+	for mob: int in range(TerrainTable.MOBILITY_COUNT):
+		var mc: PackedInt32Array = move_cost[mob]
+		mc[i] = step_cost(mob, i, false)
+		move_cost[mob] = mc
 
 
 func passable(mobility: int, i: int) -> bool:
@@ -155,21 +200,28 @@ func rebuild_sectors() -> void:
 		for i: int in range(width * height):
 			mc[i] = step_cost(mob, i, false)
 		move_cost.append(mc)
+	for sy: int in range(sectors_y):
+		for sx: int in range(sectors_x):
+			_rebuild_sector(sy * sectors_x + sx)
+
+
+func _rebuild_sector(s: int) -> void:
+	var n: int = sectors_x * sectors_y
+	var sx: int = s % sectors_x
+	var sy: int = s / sectors_x
 	for mob: int in range(TerrainTable.MOBILITY_COUNT):
-		for sy: int in range(sectors_y):
-			for sx: int in range(sectors_x):
-				var total: int = 0
-				var passable_n: int = 0
-				var cells: int = 0
-				for cy: int in range(sy * SECTOR, mini((sy + 1) * SECTOR, height)):
-					for cx: int in range(sx * SECTOR, mini((sx + 1) * SECTOR, width)):
-						cells += 1
-						var c: int = step_cost(mob, index(cx, cy), false)
-						if c > 0:
-							passable_n += 1
-							total += c
-				var cost: int = BIG
-				if passable_n * 5 >= cells and passable_n > 0:
-					# average step cost x sector width, penalised by how blocked it is
-					cost = (total / passable_n) * SECTOR * cells / passable_n
-				sector_cost[mob * n + sy * sectors_x + sx] = cost
+		var total: int = 0
+		var passable_n: int = 0
+		var cells: int = 0
+		for cy: int in range(sy * SECTOR, mini((sy + 1) * SECTOR, height)):
+			for cx: int in range(sx * SECTOR, mini((sx + 1) * SECTOR, width)):
+				cells += 1
+				var c: int = step_cost(mob, index(cx, cy), false)
+				if c > 0:
+					passable_n += 1
+					total += c
+		var cost: int = BIG
+		if passable_n * 5 >= cells and passable_n > 0:
+			# average step cost x sector width, penalised by how blocked it is
+			cost = (total / passable_n) * SECTOR * cells / passable_n
+		sector_cost[mob * n + s] = cost

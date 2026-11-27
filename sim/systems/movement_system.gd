@@ -53,6 +53,8 @@ static func effective_max_speed(world: SimWorld, id: int, def: UnitStats) -> int
 			return 0
 		if (u.damage[id] & UnitStore.DMG_TRACKS) != 0:
 			return 0
+	if def.fuel_capacity > 0 and world.logistics.fuel[id] <= 0:
+		return 0
 	var spd: int = def.max_speed
 	if (u.damage[id] & UnitStore.DMG_ENGINE) != 0:
 		spd = spd * 300 / 1000
@@ -80,7 +82,8 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 	var reverse: bool = (o.flags[id] & OrderStore.FLAG_REVERSE) != 0
 	var max_spd: int = effective_max_speed(world, id, def)
 
-	if kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT or kind == OrderStore.ATTACK:
+	if kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT \
+			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD:
 		if kind == OrderStore.ATTACK:
 			_update_attack_goal(world, id, def)
 		var gx: int = o.goal_x[id]
@@ -89,7 +92,10 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 		var engaged: bool = kind == OrderStore.ATTACK_MOVE and WeaponSystem.has_engaged_target(world, id)
 		if kind == OrderStore.ATTACK and _attack_in_position(world, id, def):
 			engaged = true
-		if dist <= def.radius_mm + 1500:
+		if kind == OrderStore.BUILD and world.is_unit(o.target[id]) \
+				and Economy.dist_to_structure(world, o.target[id], x, y) <= Economy.mm(world, "build_range_m") - 8000:
+			engaged = true  # on site: stand and build
+		if dist <= def.radius_mm + 1500 and kind != OrderStore.BUILD:
 			if kind != OrderStore.ATTACK:
 				_complete_order(world, id)
 		elif engaged:
@@ -236,6 +242,8 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 	ny = clampi(ny, 0, world.map_height_mm() - 1)
 
 	var moved: int = absi(nx - x) + absi(ny - y)
+	if def.fuel_capacity > 0 and moved > 0:
+		_burn_fuel(world, id, def, FixedMath.length2(nx - x, ny - y))
 	if has_dest and moved * 4 < maxi(def.max_speed, 40):
 		m.blocked_ticks[id] += 1
 	else:
@@ -245,6 +253,22 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 	t.z[id] = world.grid.ground_at(nx, ny)
 	t.heading[id] = heading
 	m.speed[id] = spd
+
+
+## Charges fuel for distance driven; the odometer keeps the sub-mL remainder.
+func _burn_fuel(world: SimWorld, id: int, def: UnitStats, dist_mm: int) -> void:
+	var lg: LogisticsStore = world.logistics
+	var odo: int = lg.odometer[id] + dist_mm
+	# fuel_per_km mL per 1_000_000 mm
+	var used: int = odo * def.fuel_per_km / 1000000
+	if def.fuel_per_km > 0:
+		odo -= used * 1000000 / def.fuel_per_km
+	lg.odometer[id] = odo
+	if used > 0:
+		var before: int = lg.fuel[id]
+		lg.fuel[id] = maxi(0, before - used)
+		if before > 0 and lg.fuel[id] == 0:
+			world.emit(SimEvent.Type.OUT_OF_FUEL, id)
 
 
 func _check_progress(world: SimWorld, id: int, dist: int, tick: int) -> void:

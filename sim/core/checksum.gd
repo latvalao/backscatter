@@ -41,6 +41,8 @@ static func compute(world: SimWorld) -> int:
 	for v: TeamVision in world.vision:
 		v.hash_into(h, ids)
 	world.projectiles.hash_into(h)
+	world.players.hash_into(h)
+	h.add_int(world.winner_team)
 	world.smoke.hash_into(h)
 	h.add_int(world.path_requests.size())
 	for pid: int in world.path_requests:

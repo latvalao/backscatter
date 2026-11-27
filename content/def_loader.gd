@@ -6,6 +6,8 @@ extends RefCounted
 
 const WEAPON_DIR: String = "res://data/weapons"
 const UNIT_DIR: String = "res://data/units"
+const BUILDING_DIR: String = "res://data/buildings"
+const RULES_DIR: String = "res://data/rules"
 
 static var _cached: DefDb = null
 
@@ -14,6 +16,15 @@ static var _cached: DefDb = null
 static func load_default() -> DefDb:
 	if _cached == null:
 		_cached = load_dirs(WEAPON_DIR, UNIT_DIR)
+		for entry: Dictionary in _read_entries(BUILDING_DIR):
+			_cached.add_unit(_structure(entry))
+		for f: String in DirAccess.get_files_at(RULES_DIR):
+			if f.ends_with(".json"):
+				var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(RULES_DIR.path_join(f)))
+				if typeof(d) == TYPE_DICTIONARY:
+					var rules: Dictionary = d
+					for k: String in rules.keys():
+						_cached.rules[k] = roundi(float(rules[k]))
 	return _cached
 
 
@@ -142,4 +153,50 @@ static func _unit(d: Dictionary, db: DefDb) -> UnitStats:
 	var abilities: Array = d.get("abilities", [])
 	for a: Variant in abilities:
 		u.abilities.append(String(a))
+	u.built_at = d.get("built_at", "")
+	u.fuel_capacity = _scaled(d, "fuel_l", 1000)
+	u.fuel_per_km = _scaled(d, "fuel_per_km_l", 1000)
+	u.cargo_capacity = _i(d, "cargo")
+	return u
+
+
+## Structures reuse UnitStats with is_structure set (no mobility, no crew).
+static func _structure(d: Dictionary) -> UnitStats:
+	var u: UnitStats = UnitStats.new()
+	u.id = d["id"]
+	u.is_structure = true
+	u.faction = d.get("faction", "any")
+	u.display_name = d.get("name", u.id)
+	u.role = d.get("role", "")
+	u.built_at = d.get("built_at", "none")
+	u.cost_supply = _i(d, "sup")
+	u.cost_manpower = _i(d, "mp")
+	u.build_time_ticks = _scaled(d, "build_s", SimConst.TICKS_PER_SECOND)
+	var fp: Array = d.get("footprint", [1, 1])
+	u.footprint_w = roundi(float(fp[0]))
+	u.footprint_h = roundi(float(fp[1]))
+	var blocks: Array = d.get("blocks", [])
+	for b: Variant in blocks:
+		var mob: int = TerrainTable.MOBILITY_NAMES.find(String(b))
+		assert(mob >= 0, "bad blocks entry in " + u.id)
+		u.blocks_mask |= 1 << mob
+	u.cover = _i(d, "cover")
+	u.hp = _i(d, "hp", 1000)
+	var armour: Dictionary = d.get("armour", {})
+	u.armour_front = _i(armour, "front")
+	u.armour_side = _i(armour, "side")
+	u.armour_rear = _i(armour, "rear")
+	u.armour_top = _i(armour, "top")
+	u.protection_factor = maxi(1, _i(d, "pf", 1))
+	var vision: Dictionary = d.get("vision", {})
+	u.vision_day_mm = _scaled(vision, "day_m", 1000, 0)
+	u.vision_night_mm = _scaled(vision, "night_m", 1000, u.vision_day_mm / 2)
+	u.visibility = _i(d, "visibility", 1500)
+	u.size_class = ["infantry", "small", "large"].find(String(d.get("size", "large")))
+	u.radius_mm = maxi(u.footprint_w, u.footprint_h) * SimGrid.CELL_MM / 2
+	u.eye_height_mm = 4000
+	u.target_height_mm = 3000
+	u.morale = 1000
+	u.members = 1
+	u.mobility_class = TerrainTable.TRACKED
 	return u
