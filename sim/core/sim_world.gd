@@ -127,6 +127,7 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 	_systems.append(LogisticsSystem.new())     # 9
 	_systems.append(FieldSystem.new())         # 9: mines, salvage, crews, flares
 	_systems.append(SupportSystem.new())       # 9: off-map support arriving
+	_systems.append(SmartOrders.new())         # 9: smart orders (auto CB, crew rotation)
 	_systems.append(VictorySystem.new())       # 10
 
 

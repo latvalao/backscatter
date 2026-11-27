@@ -111,6 +111,10 @@ func _acquire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, team: in
 		var d: int = _dist(world, id, tgt)
 		if d < w.range_min_mm or d > w.range_max_mm:
 			continue
+		var ow: int = world.units.overwatch_dir[id]
+		if ow >= 0 and tgt != forced and absi(FixedMath.angle_diff(ow, FixedMath.atan2_b(world.transform.y[tgt] - world.transform.y[id], world.transform.x[tgt] - world.transform.x[id]))) > SmartOrders.OVERWATCH_HALF_ARC \
+				and not (world.units.last_attacker[id] == tgt and tick - world.units.last_hit_tick[id] < 50):
+			continue
 		var lim: int = world.units.engage_range[id]
 		if lim > 0 and d > lim and tgt != forced and not (world.units.last_attacker[id] == tgt and tick - world.units.last_hit_tick[id] < 50):
 			continue

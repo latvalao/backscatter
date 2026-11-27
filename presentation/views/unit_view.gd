@@ -34,6 +34,8 @@ var _bob: float = 0.0
 var _burn: float = 0.0
 var _selected: bool = false
 var _rotor: Node3D
+var _identified: bool = true
+var _proxy: MeshInstance3D
 
 
 func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_faction: String = "") -> void:
@@ -181,6 +183,40 @@ func _build_flag() -> void:
 	add_child(flag)
 
 
+## Unidentified enemy contact: a generic shape for its class and a short label.
+func set_identified(on: bool) -> void:
+	if on == _identified:
+		return
+	_identified = on
+	model.visible = on
+	if not on and _proxy == null:
+		_proxy = MeshInstance3D.new()
+		var bm: BoxMesh = BoxMesh.new()
+		if def.is_infantry:
+			bm.size = Vector3(4.0, 1.6, 4.0)
+		elif def.is_air:
+			bm.size = Vector3(5.0, 1.5, 9.0)
+		else:
+			bm.size = Vector3(3.6, 2.2, 7.5 if def.mobility_class == TerrainTable.TRACKED else 6.5)
+		_proxy.mesh = bm
+		_proxy.position.y = bm.size.y * 0.5
+		var m: StandardMaterial3D = StandardMaterial3D.new()
+		m.albedo_color = Color(0.26, 0.26, 0.24)
+		m.roughness = 1.0
+		_proxy.material_override = m
+		add_child(_proxy)
+	if _proxy != null:
+		_proxy.visible = not on
+
+
+func contact_class() -> String:
+	if def.is_infantry:
+		return "Infantry"
+	if def.is_air:
+		return "Aircraft"
+	return "Tracked vehicle" if def.mobility_class == TerrainTable.TRACKED else "Wheeled vehicle"
+
+
 func set_selected(on: bool) -> void:
 	_selected = on
 	if _ring != null:
@@ -247,6 +283,11 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 		text += " PINNED"
 	elif supp >= 300:
 		text += " supp"
+	if not _identified:
+		_label.text = "? " + contact_class()
+		_label.modulate = Color(1.0, 0.7, 0.5)
+		_label.visible = true
+		return
 	_label.text = text
 	_label.modulate = Color(1, 0.55, 0.45) if supp >= MoraleSystem.PIN_THRESHOLD else Color(0.95, 0.95, 0.9)
 	_label.visible = show_label or hurt or supp >= 300 or u.rout_until[entity_id] > world.tick

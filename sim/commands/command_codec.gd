@@ -46,6 +46,8 @@ static func create(type: String) -> SimCommand:
 			return EngineerTaskCommand.new()
 		"support":
 			return SupportCommand.new()
+		"smart":
+			return SmartOrderCommand.new()
 	return null
 
 

@@ -18,6 +18,7 @@ var lockstep: Lockstep
 var replay_mode: bool = false
 var dosimetry: DosimetryOverlay
 var look: LookDirector
+var stats: MatchStats
 ## Tools only (beauty corner): use this world instead of MatchSetup.
 var preset_world: SimWorld
 var _terrain: TerrainView
@@ -157,6 +158,16 @@ func _ready() -> void:
 	alerts.minimap = minimap
 	hud.add_child(alerts)
 	controller.alerts = alerts
+	stats = MatchStats.new()
+	stats.runner = runner
+	stats.views = views
+	add_child(stats)
+	if replay_mode:
+		var rc: ReplayControls = ReplayControls.new()
+		rc.runner = runner
+		rc.views = views
+		rc.terrain = terrain
+		hud.add_child(rc)
 	if not replay_mode:
 		var support: SupportBar = SupportBar.new()
 		support.controller = controller

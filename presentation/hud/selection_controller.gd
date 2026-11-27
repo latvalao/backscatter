@@ -5,7 +5,7 @@
 class_name SelectionController
 extends Control
 
-enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE, SUPPORT }
+enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE, SUPPORT, SEIZE, OVERWATCH }
 
 const CLICK_PICK_PX: float = 24.0
 const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "REVERSE: left-click destination",
@@ -15,7 +15,9 @@ const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "
 	"ENGAGEMENT RANGE: left-click the distance to open fire at (Shift+Y clears)",
 	"MINEFIELD: left-click where the engineer lays mines (30 supply)",
 	"ILLUMINATION: left-click where to fire a flare",
-	"%s: left-click the target point"]
+	"%s: left-click the target point",
+	"SEIZE: left-click the objective (wedge, attack-move, dig in)",
+	"OVERWATCH: left-click the centre of the sector to cover"]
 const DOUBLE_CLICK_S: float = 0.35
 const FACING_DRAG_PX: float = 24.0
 
@@ -234,6 +236,18 @@ func _key(k: InputEventKey) -> void:
 			set_mode(Mode.UNLOAD_AT)
 		KEY_M:
 			set_mode(Mode.LAY_MINES)
+		KEY_K:
+			set_mode(Mode.SEIZE)
+		KEY_O:
+			set_mode(Mode.OVERWATCH)
+		KEY_B:
+			var cb: bool = (runner.world.units.smart[selection[0]] & UnitStore.SMART_AUTO_CB) == 0
+			submit(SmartOrderCommand.new(selection, SmartOrderCommand.AUTO_CB, 0, 0, cb))
+			message = "Auto counter-battery " + ("on" if cb else "off")
+		KEY_J:
+			var rot: bool = (runner.world.units.smart[selection[0]] & UnitStore.SMART_ROTATE) == 0
+			submit(SmartOrderCommand.new(selection, SmartOrderCommand.ROTATE, 0, 0, rot))
+			message = "Crew rotation " + ("on" if rot else "off")
 		KEY_I:
 			set_mode(Mode.FLARE)
 		KEY_Y:
@@ -347,6 +361,12 @@ func _mode_click(pos: Vector2, shift: bool) -> void:
 		Mode.UNLOAD_AT:
 			submit(UnloadCommand.new(selection, s.x, s.y, true))
 			message = "Unloading at the marked point"
+		Mode.SEIZE:
+			submit(SmartOrderCommand.new(selection, SmartOrderCommand.SEIZE, s.x, s.y))
+			message = "Seize"
+		Mode.OVERWATCH:
+			submit(SmartOrderCommand.new(selection, SmartOrderCommand.OVERWATCH, s.x, s.y))
+			message = "Overwatch"
 		Mode.LAY_MINES:
 			submit(EngineerTaskCommand.new(selection, UnitStore.TASK_LAY_MINES, s.x, s.y))
 			message = "Laying mines"

@@ -38,6 +38,18 @@ func _process(_delta: float) -> bool:
 		_start(GameScene.create_offline(s2))
 	elif _phase == 2 and _frame == FRAMES:
 		_report()
+		# replay viewer over what the sandbox just recorded
+		var gs: GameScene = _scene as GameScene
+		var data: Dictionary = gs.lockstep.recorder.to_dict()
+		data["final_tick"] = gs.runner.world.tick
+		_scene.queue_free()
+		_scene = GameScene.create_replay(data)
+		root.add_child(_scene)
+		(_scene as GameScene).runner.speed = 4
+		_phase += 1
+		_frame = 0
+	elif _phase == 3 and _frame == FRAMES / 2:
+		_report()
 		quit(0)
 		return true
 	return false

@@ -18,6 +18,8 @@ var waiting: bool = false
 var speed: int = 1
 ## Max ticks per frame, so a long hitch doesn't spiral.
 var max_catch_up: int = 4
+## Replays only: skip ahead to this tick as fast as possible (-1 = off).
+var fast_forward_to: int = -1
 ## Wall-clock cost of the last sim tick (ms), for the HUD.
 var last_tick_ms: float = 0.0
 
@@ -35,6 +37,14 @@ func _process(delta: float) -> void:
 		return
 	if lockstep != null:
 		lockstep.receive()
+	if replay != null and fast_forward_to > world.tick:
+		# replay skip: run many ticks this frame
+		var n: int = 0
+		while world.tick < fast_forward_to and n < 250 and _step_once():
+			n += 1
+		if n == 0 or world.tick >= fast_forward_to:
+			fast_forward_to = -1
+		return
 	if speed <= 0:
 		return
 	_accum_ms += delta * 1000.0 * speed

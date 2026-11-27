@@ -58,6 +58,17 @@ var task_y: PackedInt64Array = PackedInt64Array()
 var task_arg: PackedInt32Array = PackedInt32Array()
 ## Last tick this unit made a radio call (off-map support): a DF-visible burst.
 var tx_tick: PackedInt32Array = PackedInt32Array()
+## Smart order flags (SMART_*), overwatch sector centre (binary angle, -1 none)
+## and the position a unit returns to after a crew rotation.
+var smart: PackedInt32Array = PackedInt32Array()
+var overwatch_dir: PackedInt32Array = PackedInt32Array()
+var home_x: PackedInt64Array = PackedInt64Array()
+var home_y: PackedInt64Array = PackedInt64Array()
+
+const SMART_AUTO_CB: int = 1
+const SMART_ROTATE: int = 2
+## Set while a unit is away being treated / decontaminated.
+const SMART_ROTATING: int = 4
 
 const TASK_NONE: int = 0
 const TASK_SALVAGE: int = 1
@@ -96,6 +107,10 @@ func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
 	task_y[id] = 0
 	task_arg[id] = 0
 	tx_tick[id] = -1000
+	smart[id] = 0
+	overwatch_dir[id] = -1
+	home_x[id] = 0
+	home_y[id] = 0
 
 
 func _resize_columns(n: int) -> void:
@@ -128,12 +143,16 @@ func _resize_columns(n: int) -> void:
 	task_y.resize(n)
 	task_arg.resize(n)
 	tx_tick.resize(n)
+	smart.resize(n)
+	overwatch_dir.resize(n)
+	home_x.resize(n)
+	home_y.resize(n)
 
 
 func _cols() -> Array[PackedInt32Array]:
 	return [def_index, team, owner, hp, crew, damage, suppression, morale, members_alive,
 		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills, emcon, link, link_lost,
-		carrier, engage_range, xp, rank, rout_until, still_ticks, task, task_arg, tx_tick]
+		carrier, engage_range, xp, rank, rout_until, still_ticks, task, task_arg, tx_tick, smart, overwatch_dir]
 
 
 func hash_entity(id: int, h: Checksum) -> void:
@@ -141,3 +160,5 @@ func hash_entity(id: int, h: Checksum) -> void:
 		h.add_int(col[id])
 	h.add_int(task_x[id])
 	h.add_int(task_y[id])
+	h.add_int(home_x[id])
+	h.add_int(home_y[id])

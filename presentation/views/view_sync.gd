@@ -25,6 +25,12 @@ var _track_from: Dictionary = {}  # id -> Vector3
 var last_events: Array[SimEvent] = []
 ## Display names of units destroyed this frame, id -> [name, team, position].
 var lost: Dictionary = {}
+## Identified enemy contacts (id -> bool), refreshed a few times a second.
+var _identified: Dictionary = {}
+var _id_timer: int = 0
+## A contact is identified when one of our units is within this share of its
+## own day sight range (recon units: full range).
+const IDENTIFY_SHARE: float = 0.5
 
 
 func _process(delta: float) -> void:
@@ -37,6 +43,10 @@ func _process(delta: float) -> void:
 		_on_event(w, e)
 	var layer: TeamVision = w.vision[local_team]
 	var terrain: TerrainView = effects.terrain if is_instance_valid(effects) else null
+	_id_timer -= 1
+	var refresh_id: bool = _id_timer <= 0
+	if refresh_id:
+		_id_timer = 12
 	for id: int in _views.keys():
 		var v: UnitView = _views[id]
 		var own: bool = v.team == local_team
@@ -49,11 +59,28 @@ func _process(delta: float) -> void:
 			v.rotation.y = runner.interpolated_yaw(id)
 			v.set_selected(selected.has(id))
 			v.refresh(w, show_labels or selected.has(id), terrain, delta)
+			if not own and not v.def.is_structure:
+				if refresh_id:
+					_identified[id] = reveal_all or _is_identified(w, id)
+				v.set_identified(bool(_identified.get(id, false)))
 		if terrain != null and not v.def.is_infantry and not v.def.is_structure and not v.def.is_air:
 			_tracks(id, v, terrain)
 		_update_ghost(w, id, v, vis, own, layer)
 	if terrain != null:
 		_canopy_fade(terrain)
+
+
+func _is_identified(w: SimWorld, target: int) -> bool:
+	var tx: int = w.transform.x[target]
+	var ty: int = w.transform.y[target]
+	for id: int in w.team_units[local_team] if local_team < w.team_units.size() else PackedInt32Array():
+		var d: UnitStats = w.def_of(id)
+		var r: int = d.vision_day_mm if d.role == "scout" or d.is_air else int(d.vision_day_mm * IDENTIFY_SHARE)
+		var dx: int = w.transform.x[id] - tx
+		var dy: int = w.transform.y[id] - ty
+		if dx * dx + dy * dy <= r * r:
+			return true
+	return false
 
 
 ## Tracks / ruts into the trail map (only for ground vehicles that moved).

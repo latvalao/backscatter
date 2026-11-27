@@ -42,7 +42,10 @@ func apply(world: SimWorld) -> void:
 		flags |= OrderStore.FLAG_REVERSE
 	if safe:
 		flags |= OrderStore.FLAG_SAFE
-	Orders.start_group(world, owned(world), kind, flags, x_mm, y_mm, queue, formation, face)
+	var ids: PackedInt32Array = owned(world)
+	for id: int in ids:
+		world.units.overwatch_dir[id] = -1
+	Orders.start_group(world, ids, kind, flags, x_mm, y_mm, queue, formation, face)
 
 
 func type_id() -> StringName:

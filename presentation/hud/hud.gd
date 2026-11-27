@@ -21,6 +21,7 @@ const HELP: String = "LMB select/box, double-click selects type  |  RMB move/att
 	+ "A attack-move  R reverse  F fire mission  G smoke mission  X smoke  S stop  H hold fire  Y engage range (Shift+Y clear)\n" \
 	+ "U unload  T unload at point  N formation  Tab subgroup  . idle unit  Home HQ  Space last alert  L line of sight\n" \
 	+ "M lay mines (engineer)  RMB wreck: salvage (engineer)  I illumination flare (mortar/artillery)\n" \
+	+ "K seize  O overwatch  B auto counter-battery  J crew rotation\n" \
 	+ "F1-F8 build/produce  Ctrl+1-9 group  Z EMCON  Ctrl+RMB safe route  D dosimetry  V signals  P pause  +/- speed  Esc menu"
 
 
@@ -117,7 +118,15 @@ func _process(delta: float) -> void:
 	_card.text = _card_text(w)
 	if w.winner_team >= 0 and not _ended:
 		_ended = true
-		banner("VICTORY" if w.winner_team == team else "DEFEAT")
+		if scene.stats != null:
+			var ms: MatchSummary = MatchSummary.new()
+			ms.stats = scene.stats
+			ms.local_team = team
+			ms.on_leave = func() -> void: scene.leave()
+			add_child(ms)
+			ms.build(w.winner_team)
+		else:
+			banner("VICTORY" if w.winner_team == team else "DEFEAT")
 
 
 func _env_line(w: SimWorld, me: int) -> String:
