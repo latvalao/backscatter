@@ -19,6 +19,8 @@ var desynced: bool = false
 ## Wall-clock-free stat: how many try_advance() calls found a turn missing.
 var stalls: int = 0
 
+## First tick this session simulates (non-zero after loading a save).
+var _start_tick: int = 0
 var _turns: Dictionary = {}           # tick -> {player: Array[SimCommand]}
 var _pending: Array[SimCommand] = []  # local, not yet sent
 var _next_send: int = 0
@@ -35,6 +37,7 @@ func _init(p_world: SimWorld, p_transport: NetTransport, p_local: int, p_players
 	players.sort()
 	input_delay = maxi(1, p_delay)
 	_next_send = world.tick + input_delay
+	_start_tick = world.tick
 
 
 ## Queue a local command; it is stamped and sent with the next outgoing turn.
@@ -95,7 +98,7 @@ func _store_turn(t: int, p: int, cmds: Array[SimCommand]) -> void:
 ## True if every player's turn for the current tick is here.
 func ready() -> bool:
 	var t: int = world.tick
-	if t < input_delay:
+	if t < _start_tick + input_delay:
 		return true
 	if not _turns.has(t):
 		return players.is_empty()

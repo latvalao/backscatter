@@ -33,6 +33,7 @@ enum Type {
 	SALVAGED,        # entity = wreck's old id, other = engineer, value = supply, x/y = place
 	FLARE,           # x/y = flare position, other = firing unit
 	SUPPORT_CALLED,  # entity = caller, other = player, value = kind, x/y = target
+	MISSION,         # other = 0 message / 1 objective added / 2 done / 3 failed, value = index
 }
 
 var kind: Type

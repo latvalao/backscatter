@@ -1,0 +1,6 @@
+{
+	"_doc": "Hand-shaped skirmish maps (FEATURES 6.7): generator presets. Thresholds are on 0..1024 noise: lower 'lake' = fewer lakes, lower 'forest' = more forest, 'bog' higher = more bog. 'relief' is hill height in mm. 'hotspots' = contaminated pockets; 'plant_center' puts the plant in the middle of the map.",
+	"border_corridor": {"name": "The Border Corridor", "text": "A long road valley between two forest belts. Depots sit on the road; the plant looms to the north.", "seed": 21, "cells": 400, "symmetric": 1, "lake": 150, "bog": 70, "forest": 760, "relief": 32000, "hotspots": 5, "plant_center": 0},
+	"red_forest": {"name": "Red Forest", "text": "Dense, contaminated woodland. Short sight lines, hot pockets everywhere, bogs on the low ground.", "seed": 33, "cells": 400, "symmetric": 1, "lake": 160, "bog": 130, "forest": 690, "relief": 26000, "hotspots": 12, "plant_center": 0},
+	"kaarnavaara": {"name": "Kaarnavaara", "text": "The plant itself in the middle of the map, ringed by lakes. Whoever holds the centre takes the dose.", "seed": 45, "cells": 450, "symmetric": 1, "lake": 215, "bog": 90, "forest": 800, "relief": 50000, "hotspots": 7, "plant_center": 1}
+}

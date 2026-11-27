@@ -29,6 +29,16 @@ static func load_default() -> DefDb:
 		var sup: Variant = JSON.parse_string(FileAccess.get_file_as_string(DOCTRINE_DIR.path_join("support.json")))
 		if typeof(sup) == TYPE_DICTIONARY:
 			_cached.support = _support(sup)
+		var maps: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/maps/maps.json"))
+		if typeof(maps) == TYPE_DICTIONARY:
+			for k: String in (maps as Dictionary).keys():
+				if k.begins_with("_"):
+					continue
+				var e: Dictionary = maps[k]
+				var m: Dictionary = {}
+				for f: String in e.keys():
+					m[f] = str(e[f]) if f == "name" or f == "text" else int(e[f])
+				_cached.maps[k] = m
 		var bgs: Variant = JSON.parse_string(FileAccess.get_file_as_string(DOCTRINE_DIR.path_join("battlegroups.json")))
 		if typeof(bgs) == TYPE_DICTIONARY:
 			_cached.battlegroups = bgs

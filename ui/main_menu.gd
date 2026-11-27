@@ -11,6 +11,8 @@ var _roster: Label
 var _status: Label
 var _start_btn: Button
 var _battlegroup: OptionButton
+var _map: OptionButton
+var _map_ids: Array[String] = []
 var _invite_btn: Button
 var _lobby: Lobby
 var _transport: NetTransport
@@ -60,9 +62,35 @@ func _ready() -> void:
 		_battlegroup.set_item_tooltip(_battlegroup.item_count - 1, str(gd.get("text", "")))
 	_battlegroup.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bg_row.add_child(_battlegroup)
-	_button(_main, "Skirmish vs AI — Easy", func() -> void: _start_skirmish(0))
-	_button(_main, "Skirmish vs AI — Normal (+ Marauders)", func() -> void: _start_skirmish(1))
-	_button(_main, "Skirmish vs AI — Hard (+ Marauders)", func() -> void: _start_skirmish(2))
+	var map_row: HBoxContainer = HBoxContainer.new()
+	_main.add_child(map_row)
+	var map_label: Label = Label.new()
+	map_label.text = "Map"
+	map_row.add_child(map_label)
+	_map = OptionButton.new()
+	_map.focus_mode = Control.FOCUS_NONE
+	_map.add_item("Procedural")
+	_map_ids = [""]
+	var ids: Array = defs.maps.keys()
+	ids.sort()
+	for mid: Variant in ids:
+		var md: Dictionary = defs.maps[mid]
+		_map.add_item(str(md.get("name", mid)))
+		_map.set_item_tooltip(_map.item_count - 1, str(md.get("text", "")))
+		_map_ids.append(str(mid))
+	_map.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	map_row.add_child(_map)
+	_button(_main, "Campaign 1: First Contact (tutorial)", func() -> void: _start_mission("first_contact", 101))
+	_button(_main, "Campaign 2: The Depot", func() -> void: _start_mission("the_depot", 102))
+	_button(_main, "Campaign 3: Signal Discipline", func() -> void: _start_mission("signal_discipline", 103))
+	_button(_main, "Skirmish vs AI: Easy", func() -> void: _start_skirmish(0))
+	_button(_main, "Skirmish vs AI: Normal, with Marauders", func() -> void: _start_skirmish(1))
+	_button(_main, "Skirmish vs AI: Hard, with Marauders", func() -> void: _start_skirmish(2))
+	_button(_main, "Zone War vs AI (victory points)", func() -> void: _start_mode("zone_war"))
+	_button(_main, "Containment (hold the plant)", func() -> void: _start_mode("containment"))
+	_button(_main, "Operation (random mission)", func() -> void: _start_mode("operation"))
+	var cont: Button = _button(_main, "Continue last save", _continue)
+	cont.disabled = not FileAccess.file_exists("user://saves/latest.save")
 	_button(_main, "Sandbox battle (combat only)", _start_sandbox)
 	_button(_main, "Host LAN game", _host_lan)
 	_address = LineEdit.new()
@@ -133,7 +161,41 @@ func _start_skirmish(difficulty: int) -> void:
 	s.players[0]["name"] = _name.text
 	s.players[0]["battlegroup"] = maxi(0, _battlegroup.selected)
 	s.match_seed = Time.get_ticks_usec()
+	s.map_id = _map_ids[maxi(0, _map.selected)]
 	_launch(GameScene.create_offline(s))
+
+
+func _start_mission(id: String, map_seed: int) -> void:
+	var s: MatchSettings = MatchSettings.new()
+	s.mode = "mission"
+	s.mission = id
+	s.match_seed = map_seed * 13
+	s.map_seed = map_seed
+	s.map_cells = 260 if id == "first_contact" else 320
+	s.marauders = false
+	s.add_player(_name.text, 0, "nc", false, 1, maxi(0, _battlegroup.selected))
+	_launch(GameScene.create_offline(s))
+
+
+func _start_mode(mode: String) -> void:
+	var s: MatchSettings = MatchSettings.new()
+	s.mode = mode
+	s.match_seed = Time.get_ticks_usec() % 1000000
+	s.map_cells = 360
+	s.map_id = "kaarnavaara" if mode == "containment" else _map_ids[maxi(0, _map.selected)]
+	s.marauders = mode == "zone_war"
+	s.add_player(_name.text, 0, "nc", false, 1, maxi(0, _battlegroup.selected))
+	if mode == "zone_war":
+		s.add_player("Eastern AI", 1, "ec", true, 1)
+	_launch(GameScene.create_offline(s))
+
+
+func _continue() -> void:
+	var data: Dictionary = ReplayRecorder.load_file("user://saves/latest.save")
+	if data.is_empty():
+		_status.text = "Could not read the save."
+		return
+	_launch(GameScene.create_from_save(data))
 
 
 func _start_sandbox() -> void:

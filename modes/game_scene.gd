@@ -22,6 +22,7 @@ var stats: MatchStats
 ## Tools only (beauty corner): use this world instead of MatchSetup.
 var preset_world: SimWorld
 var _terrain: TerrainView
+var _loading: bool = false
 var signals_overlay: SignalOverlay
 var _saved_replay: bool = false
 
@@ -46,6 +47,17 @@ static func create_networked(p_settings: MatchSettings, p_transport: NetTranspor
 	return g
 
 
+## Continue a saved single-player game: the recorded orders are replayed up
+## to the save point (fast-forward), then play resumes from there.
+static func create_from_save(data: Dictionary) -> GameScene:
+	var g: GameScene = GameScene.new()
+	g.settings = MatchSettings.from_dict(data["settings"])
+	g.local_player = 0
+	g.transport = NetTransport.new()
+	g.set_meta("load", data)
+	return g
+
+
 ## Watch a saved replay.
 static func create_replay(data: Dictionary) -> GameScene:
 	var g: GameScene = GameScene.new()
@@ -56,9 +68,9 @@ static func create_replay(data: Dictionary) -> GameScene:
 
 
 static func grid_for(s: MatchSettings) -> SimGrid:
-	var key: String = "%d_%d" % [s.map_seed, s.map_cells]
+	var key: String = "%s_%d_%d_%s" % [s.map_id, s.map_seed, s.map_cells, s.mode]
 	if not _grid_cache.has(key):
-		_grid_cache[key] = MapGen.generate(s.map_seed, s.map_cells, s.map_cells)
+		_grid_cache[key] = MatchSetup.grid_for(s, DefLoader.load_default())
 	return _grid_cache[key]
 
 
@@ -69,6 +81,12 @@ func _ready() -> void:
 	if replay_mode:
 		runner.replay = ReplayPlayer.new(get_meta("replay"), grid)
 		runner.world = runner.replay.world
+	elif has_meta("load"):
+		var data: Dictionary = get_meta("load")
+		runner.replay = ReplayPlayer.new(data, grid)
+		runner.world = runner.replay.world
+		runner.fast_forward_to = int(data["final_tick"])
+		_loading = true
 	else:
 		runner.world = preset_world if preset_world != null else MatchSetup.create(settings, DefLoader.load_default(), grid)
 		var humans: PackedInt32Array = Lobby.human_players(settings)
@@ -136,7 +154,7 @@ func _ready() -> void:
 	controller.views = views
 	controller.cam = cam
 	controller.lockstep = lockstep
-	controller.enabled = not replay_mode
+	controller.enabled = not replay_mode and not _loading
 	ui.add_child(controller)
 	hud = Hud.new()
 	hud.runner = runner
@@ -158,6 +176,10 @@ func _ready() -> void:
 	alerts.minimap = minimap
 	hud.add_child(alerts)
 	controller.alerts = alerts
+	var mp: MissionPanel = MissionPanel.new()
+	mp.runner = runner
+	mp.views = views
+	hud.add_child(mp)
 	stats = MatchStats.new()
 	stats.runner = runner
 	stats.views = views
@@ -200,6 +222,40 @@ func _focus_start(world: SimWorld, team: int) -> void:
 		var p: Vector3 = SimRunner.sim_to_view(world.transform.x[best], world.transform.y[best], 0)
 		cam.focus(p)
 	cam.rotation.y = -PI * 0.5 if team == 0 else PI * 0.5
+
+
+## Save point reached: hand the world to a fresh lockstep that keeps recording
+## on top of the loaded history.
+func _finish_load() -> void:
+	_loading = false
+	var data: Dictionary = get_meta("load")
+	var world: SimWorld = runner.world
+	runner.replay = null
+	runner.fast_forward_to = -1
+	lockstep = Lockstep.new(world, transport, local_player, Lobby.human_players(settings), 1)
+	lockstep.recorder = ReplayRecorder.new(settings.to_dict())
+	lockstep.recorder.ticks = (data["ticks"] as Dictionary).duplicate()
+	lockstep.recorder.checksums = (data["checksums"] as Dictionary).duplicate()
+	lockstep.recorder.final_tick = world.tick
+	lockstep.control_received.connect(func(spd: int) -> void: runner.speed = spd)
+	lockstep.desync.connect(_on_desync)
+	runner.lockstep = lockstep
+	controller.lockstep = lockstep
+	controller.enabled = true
+	runner.speed = 1
+	hud.hide_banner()
+
+
+## Writes the current single-player game to user://saves/.
+func save_game() -> String:
+	if lockstep == null or lockstep.recorder == null:
+		return ""
+	DirAccess.make_dir_recursive_absolute("user://saves")
+	var path: String = "user://saves/%s.save" % Time.get_datetime_string_from_system().replace(":", "-")
+	lockstep.recorder.final_tick = runner.world.tick
+	lockstep.recorder.save(path)
+	lockstep.recorder.save("user://saves/latest.save")
+	return path
 
 
 func _on_tick(_tick: int) -> void:
@@ -281,6 +337,11 @@ func _environment() -> void:
 func _process(_delta: float) -> void:
 	if cam == null or views == null or runner == null or runner.world == null:
 		return
+	if _loading:
+		var total: int = int((get_meta("load") as Dictionary)["final_tick"])
+		hud.banner("Loading… %d%%" % (runner.world.tick * 100 / maxi(1, total)))
+		if runner.world.tick >= total or runner.replay.finished():
+			_finish_load()
 	var f: Vector3 = cam.position
 	views.focus_point = f
 	if look != null:

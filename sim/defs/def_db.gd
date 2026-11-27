@@ -14,6 +14,8 @@ var _weapon_index: Dictionary = {}
 ## data/doctrine: off-map support kinds and battlegroups (lookup only).
 var support: Dictionary = {}
 var battlegroups: Dictionary = {}
+## data/maps presets: id -> {name, text, seed, cells, ...} (ints except name/text).
+var maps: Dictionary = {}
 const SUPPORT_KINDS: Array[String] = ["airstrike", "artillery", "paradrop"]
 
 

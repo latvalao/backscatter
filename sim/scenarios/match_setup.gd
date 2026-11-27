@@ -19,19 +19,38 @@ const START_KIT: Dictionary = {
 }
 
 
+## Map preset for the settings ({} = procedural).
+static func map_style(settings: MatchSettings, defs: DefDb) -> Dictionary:
+	return defs.maps.get(settings.map_id, {}) if settings.map_id != "" else {}
+
+
+## The grid a match is played on (every peer, replays and saves use this).
+static func grid_for(settings: MatchSettings, defs: DefDb) -> SimGrid:
+	var st: Dictionary = map_style(settings, defs)
+	if not st.is_empty():
+		return MapGen.generate(int(st["seed"]), int(st["cells"]), int(st["cells"]), int(st.get("symmetric", 1)) == 1, st)
+	return MapGen.generate(settings.map_seed, settings.map_cells, settings.map_cells, settings.symmetric and settings.mode != "sandbox")
+
+
 static func create(settings: MatchSettings, defs: DefDb, grid: SimGrid = null) -> SimWorld:
 	if grid == null:
-		grid = MapGen.generate(settings.map_seed, settings.map_cells, settings.map_cells, settings.symmetric and settings.mode == "skirmish")
+		grid = grid_for(settings, defs)
 	var w: SimWorld = SimWorld.new(settings.match_seed, defs, grid)
 	for p: Dictionary in settings.players:
 		w.add_player(p["team"], p["faction"], p["ai"], int(p.get("battlegroup", 0)))
 	if settings.mode == "skirmish" and settings.marauders:
 		w.add_player(2, "mr", true)
 	_fallout(w, settings)
-	if settings.mode == "sandbox":
-		_sandbox(w, settings)
-	else:
-		_skirmish(w, settings)
+	match settings.mode:
+		"sandbox":
+			_sandbox(w, settings)
+		"skirmish":
+			_skirmish(w, settings)
+		"zone_war":
+			_skirmish(w, settings)
+			_director(w, settings, ZoneWarDirector.new())
+		_:
+			_director(w, settings, director_for(settings))
 	w.drain_events()
 	# re-emit spawns so presentation that attaches later sees every entity
 	for id: int in w.entities.ids():
@@ -132,6 +151,40 @@ static func _skirmish(w: SimWorld, settings: MatchSettings) -> void:
 			w.ai.append(m)
 
 
+## The scripted director for containment / mission / operation modes.
+static func director_for(settings: MatchSettings) -> ScenarioDirector:
+	match settings.mode:
+		"containment":
+			return ContainmentDirector.new()
+		"operation":
+			var pick: int = absi(settings.match_seed) % 3
+			if pick == 2:
+				var c: ContainmentDirector = ContainmentDirector.new()
+				c.waves = 5
+				return c
+			var o: OperationsDirector = OperationsDirector.new()
+			o.template = "secure" if pick == 0 else "raid"
+			return o
+		"mission":
+			match settings.mission:
+				"the_depot":
+					return MissionTheDepot.new()
+				"signal_discipline":
+					return MissionSignalDiscipline.new()
+			return MissionFirstContact.new()
+	return ScenarioDirector.new()
+
+
+static func _director(w: SimWorld, settings: MatchSettings, d: ScenarioDirector) -> void:
+	d.player = -1
+	d.setup(w, settings)
+	w.ai.append(d)
+	# AI teammates for the human side in co-op modes
+	for p: int in range(w.players.count()):
+		if w.players.is_ai[p] == 1 and w.players.team[p] == d.human_team and p != d.enemy and w.players.faction[p] != "mr":
+			w.ai.append(CommanderAi.new(p, w.players.faction[p], int(settings.players[p].get("difficulty", 1)) if p < settings.players.size() else 1))
+
+
 ## Nearest valid placement origin to (cx, cy), scanning square rings outward.
 static func find_site(w: SimWorld, def: UnitStats, cx: int, cy: int, max_r: int) -> Vector2i:
 	for r: int in range(0, max_r + 1):
@@ -163,14 +216,19 @@ static func _fallout(w: SimWorld, settings: MatchSettings) -> void:
 	var wmm: int = g.width_mm()
 	var hmm: int = g.height_mm()
 	# plant hot zone
+	var style: Dictionary = map_style(settings, w.defs)
 	var px: int = wmm / 2 + rng.range_int(-wmm / 10, wmm / 10)
 	var py: int = hmm * 4 / 5
+	if int(style.get("plant_center", 0)) == 1:
+		px = wmm / 2
+		py = hmm / 2
 	w.radfield.add_hotspot(px, py, wmm / 8, 9_000_000)
 	w.radfield.add_hotspot(px, py, wmm / 30, 30_000_000)
 	# pockets: prefer forest / bog cells
 	var placed: int = 0
 	var tries: int = 0
-	while placed < 6 and tries < 400:
+	var pockets: int = int(style.get("hotspots", 6))
+	while placed < pockets and tries < 400:
 		tries += 1
 		var cx: int = rng.range_int(g.width / 6, g.width * 5 / 6)
 		var cy: int = rng.range_int(g.height / 8, g.height * 7 / 8)

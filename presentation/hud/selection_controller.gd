@@ -263,7 +263,10 @@ func _key(k: InputEventKey) -> void:
 		KEY_F:
 			set_mode(Mode.FIRE_MISSION)
 		KEY_G:
-			set_mode(Mode.FIRE_SMOKE)
+			if k.ctrl_pressed:
+				_give_to_teammate()
+			else:
+				set_mode(Mode.FIRE_SMOKE)
 		KEY_S:
 			submit(StopCommand.new(selection))
 		KEY_X:
@@ -434,6 +437,19 @@ func _movers() -> PackedInt32Array:
 		if not runner.world.is_structure(id):
 			out.append(id)
 	return out
+
+
+## Ctrl+G (co-op): hand the selection to the next player on our team.
+func _give_to_teammate() -> void:
+	var w: SimWorld = runner.world
+	var me: int = local_player()
+	for i: int in range(1, w.players.count()):
+		var p: int = (me + i) % w.players.count()
+		if w.players.team[p] == w.team_of_player(me) and w.players.faction[p] != "mr":
+			submit(GiveCommand.new(selection, p))
+			message = "Units given to player %d" % (p + 1)
+			return
+	message = "No teammate to give units to"
 
 
 func _has_engineer() -> bool:

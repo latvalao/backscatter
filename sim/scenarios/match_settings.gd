@@ -17,6 +17,10 @@ var players: Array[Dictionary] = []
 var marauders: bool = false
 ## Point-symmetric map (fair versus / AI-vs-AI); skirmish default.
 var symmetric: bool = true
+## Map preset id from data/maps/maps.json ("" = procedural from map_seed).
+var map_id: String = ""
+## Mission / scenario script id for mode "mission".
+var mission: String = ""
 
 
 func add_player(p_name: String, team: int, faction: String, ai: bool, difficulty: int = 1, battlegroup: int = 0) -> int:
@@ -26,7 +30,8 @@ func add_player(p_name: String, team: int, faction: String, ai: bool, difficulty
 
 func to_dict() -> Dictionary:
 	return {"version": VERSION, "mode": mode, "match_seed": match_seed, "map_seed": map_seed,
-		"map_cells": map_cells, "players": players.duplicate(true), "marauders": marauders, "symmetric": symmetric}
+		"map_cells": map_cells, "players": players.duplicate(true), "marauders": marauders, "symmetric": symmetric,
+		"map_id": map_id, "mission": mission}
 
 
 static func from_dict(d: Dictionary) -> MatchSettings:
@@ -37,6 +42,8 @@ static func from_dict(d: Dictionary) -> MatchSettings:
 	s.map_cells = d.get("map_cells", 500)
 	s.marauders = d.get("marauders", false)
 	s.symmetric = d.get("symmetric", true)
+	s.map_id = str(d.get("map_id", ""))
+	s.mission = str(d.get("mission", ""))
 	var ps: Array = d.get("players", [])
 	for p: Variant in ps:
 		var pd: Dictionary = p

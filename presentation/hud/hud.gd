@@ -21,7 +21,7 @@ const HELP: String = "LMB select/box, double-click selects type  |  RMB move/att
 	+ "A attack-move  R reverse  F fire mission  G smoke mission  X smoke  S stop  H hold fire  Y engage range (Shift+Y clear)\n" \
 	+ "U unload  T unload at point  N formation  Tab subgroup  . idle unit  Home HQ  Space last alert  L line of sight\n" \
 	+ "M lay mines (engineer)  RMB wreck: salvage (engineer)  I illumination flare (mortar/artillery)\n" \
-	+ "K seize  O overwatch  B auto counter-battery  J crew rotation\n" \
+	+ "K seize  O overwatch  B auto counter-battery  J crew rotation  Ctrl+G give units to teammate\n" \
 	+ "F1-F8 build/produce  Ctrl+1-9 group  Z EMCON  Ctrl+RMB safe route  D dosimetry  V signals  P pause  +/- speed  Esc menu"
 
 
@@ -65,6 +65,7 @@ func _build_menu() -> void:
 	var box: VBoxContainer = VBoxContainer.new()
 	_menu.add_child(box)
 	for pair: Array in [["Resume", func() -> void: toggle_menu()],
+			["Save game", func() -> void: banner("Game saved: " + ProjectSettings.globalize_path(scene.save_game()))],
 			["Save replay", func() -> void: banner("Replay saved: " + ProjectSettings.globalize_path(scene.save_replay()))],
 			["Leave match", func() -> void: scene.leave()]]:
 		var b: Button = Button.new()
@@ -78,6 +79,10 @@ func _build_menu() -> void:
 
 func toggle_menu() -> void:
 	_menu.visible = not _menu.visible
+
+
+func hide_banner() -> void:
+	_banner.visible = false
 
 
 func banner(text: String) -> void:
@@ -144,7 +149,8 @@ func _env_line(w: SimWorld, me: int) -> String:
 
 
 func settings_mode() -> String:
-	return "Skirmish" if scene.settings.mode == "skirmish" else "Sandbox"
+	return {"skirmish": "Skirmish", "sandbox": "Sandbox", "zone_war": "Zone War", "containment": "Containment",
+		"operation": "Operation", "mission": "Campaign"}.get(scene.settings.mode, scene.settings.mode)
 
 
 func _card_text(w: SimWorld) -> String:

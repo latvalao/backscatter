@@ -8,7 +8,12 @@ extends RefCounted
 const NOISE_ONE: int = 1024
 
 
-static func generate(seed_value: int, width: int, height: int, symmetric: bool = false) -> SimGrid:
+## style (optional ints): lake, bog, forest thresholds and relief (mm).
+static func generate(seed_value: int, width: int, height: int, symmetric: bool = false, style: Dictionary = {}) -> SimGrid:
+	var lake_t: int = int(style.get("lake", 190))
+	var bog_t: int = int(style.get("bog", 90))
+	var forest_t: int = int(style.get("forest", 790))
+	var relief: int = int(style.get("relief", 45000))
 	var g: SimGrid = SimGrid.new(width, height)
 	var h_lo: PackedInt32Array = _noise_field(seed_value, 1, width, height, 96)
 	var h_hi: PackedInt32Array = _noise_field(seed_value, 2, width, height, 24)
@@ -19,16 +24,16 @@ static func generate(seed_value: int, width: int, height: int, symmetric: bool =
 	var bog: PackedInt32Array = _noise_field(seed_value, 7, width, height, 40)
 
 	for i: int in range(width * height):
-		var hgt: int = (h_lo[i] * 45000 + h_hi[i] * 12000) / NOISE_ONE
+		var hgt: int = (h_lo[i] * relief + h_hi[i] * 12000) / NOISE_ONE
 		var t: int = TerrainTable.FIELD
-		if lake[i] < 190:
+		if lake[i] < lake_t:
 			t = TerrainTable.WATER
 			hgt = mini(hgt, 8000)
-		elif lake[i] < 250 or bog[i] < 90:
+		elif lake[i] < lake_t + 60 or bog[i] < bog_t:
 			t = TerrainTable.BOG
 		elif rock[i] > 930 and h_lo[i] > 550:
 			t = TerrainTable.ROCK
-		elif forest[i] + forest_d[i] / 4 > 790:
+		elif forest[i] + forest_d[i] / 4 > forest_t:
 			t = TerrainTable.FOREST
 		g.terrain[i] = t
 		g.ground_mm[i] = hgt

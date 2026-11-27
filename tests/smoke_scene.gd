@@ -9,6 +9,8 @@ const FRAMES: int = 160
 var _frame: int = 0
 var _phase: int = 0
 var _scene: Node
+var _save_tick: int = 0
+var _save_sum: int = 0
 
 
 func _initialize() -> void:
@@ -30,12 +32,32 @@ func _process(_delta: float) -> bool:
 		_start(GameScene.create_offline(s))
 	elif _phase == 1 and _frame == FRAMES:
 		_report()
+		# save, then load and check the reloaded world matches at the save tick
+		var sg: GameScene = _scene as GameScene
+		sg.runner.speed = 0
+		var path: String = sg.save_game()
+		_save_tick = sg.runner.world.tick
+		_save_sum = Checksum.compute(sg.runner.world)
 		_scene.queue_free()
-		var s2: MatchSettings = MatchSettings.new()
-		s2.mode = "sandbox"
-		s2.add_player("P", 0, "nc", false)
-		s2.add_player("AI", 1, "ec", true)
-		_start(GameScene.create_offline(s2))
+		_scene = GameScene.create_from_save(ReplayRecorder.load_file(path))
+		root.add_child(_scene)
+		_phase = 10
+		_frame = 0
+	elif _phase == 10 and _frame == FRAMES:
+		var lg: GameScene = _scene as GameScene
+		if lg.runner.world.tick < _save_tick or lg.lockstep == null:
+			printerr("SMOKE FAIL: save did not load (tick %d of %d)" % [lg.runner.world.tick, _save_tick])
+			quit(1)
+			return true
+		print("smoke: loaded save at tick %d, now %d" % [_save_tick, lg.runner.world.tick])
+		assert(_save_sum != 0)
+		_scene.queue_free()
+		var s3: MatchSettings = MatchSettings.new()
+		s3.mode = "sandbox"
+		s3.add_player("P", 0, "nc", false)
+		s3.add_player("AI", 1, "ec", true)
+		_phase = 1
+		_start(GameScene.create_offline(s3))
 	elif _phase == 2 and _frame == FRAMES:
 		_report()
 		# replay viewer over what the sandbox just recorded
@@ -49,6 +71,15 @@ func _process(_delta: float) -> bool:
 		_phase += 1
 		_frame = 0
 	elif _phase == 3 and _frame == FRAMES / 2:
+		_report()
+		# a scripted mode with its mission panel
+		_scene.queue_free()
+		var m: MatchSettings = MatchSettings.new()
+		m.mode = "containment"
+		m.map_cells = 240
+		m.add_player("P", 0, "nc", false)
+		_start(GameScene.create_offline(m))
+	elif _phase == 4 and _frame == FRAMES / 2:
 		_report()
 		quit(0)
 		return true

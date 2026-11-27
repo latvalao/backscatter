@@ -48,6 +48,8 @@ static func create(type: String) -> SimCommand:
 			return SupportCommand.new()
 		"smart":
 			return SmartOrderCommand.new()
+		"give":
+			return GiveCommand.new()
 	return null
 
 
