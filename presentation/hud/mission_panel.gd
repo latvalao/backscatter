@@ -42,7 +42,7 @@ func _draw() -> void:
 		return
 	var font: Font = get_theme_default_font()
 	var x: float = size.x - 470.0
-	var y: float = 150.0
+	var y: float = 196.0
 	_text(font, Vector2(x, y), director.title.to_upper(), 16, Color(0.95, 0.9, 0.75))
 	y += 24.0
 	for i: int in range(director.objectives.size()):

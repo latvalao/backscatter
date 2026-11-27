@@ -28,6 +28,14 @@ func _initialize() -> void:
 			_overlays.append(a)
 	var st: MatchSettings = MatchSettings.default_skirmish()
 	for a2: String in OS.get_cmdline_user_args():
+		if a2.begins_with("--mission="):
+			st = MatchSettings.new()
+			st.mode = "mission"
+			st.mission = a2.substr(10)
+			st.match_seed = 101 * 13
+			st.map_seed = 101
+			st.map_cells = 260
+			st.add_player("P", 0, "nc", false)
 		if a2 == "--sandbox":
 			st = MatchSettings.new()
 			st.mode = "sandbox"

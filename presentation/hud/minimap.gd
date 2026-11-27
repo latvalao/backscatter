@@ -14,6 +14,7 @@ var controller: SelectionController
 var _tex: ImageTexture
 var _pings: Array[Dictionary] = []
 var _drag: bool = false
+var _director: ScenarioDirector
 
 
 func setup() -> void:
@@ -104,6 +105,17 @@ func _draw() -> void:
 		corners.append(_to_map(gp as Vector3))
 	corners.append(corners[0])
 	draw_polyline(corners, Color(1, 1, 1, 0.8), 1.0)
+	if _director == null:
+		for c: AiController in w.ai:
+			if c is ScenarioDirector:
+				_director = c as ScenarioDirector
+	if _director != null:
+		var mk: PackedInt64Array = _director.markers
+		for i: int in range(0, mk.size() - 1, 2):
+			var mp: Vector2 = _to_map(SimRunner.sim_to_view(mk[i], mk[i + 1], 0))
+			var pulse: float = 5.0 + 2.0 * sin(Time.get_ticks_msec() * 0.006)
+			var dia: PackedVector2Array = PackedVector2Array([mp + Vector2(0, -pulse), mp + Vector2(pulse, 0), mp + Vector2(0, pulse), mp + Vector2(-pulse, 0), mp + Vector2(0, -pulse)])
+			draw_polyline(dia, Color(0.88, 0.71, 0.29), 2.0)
 	for pg: Dictionary in _pings:
 		var k: float = 1.0 - float(pg["t"]) / PING_S
 		var pc: Color = pg["c"]

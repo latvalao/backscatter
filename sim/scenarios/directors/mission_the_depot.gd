@@ -34,6 +34,10 @@ func setup(world: SimWorld, _settings: MatchSettings) -> void:
 		if site.x >= 0:
 			depots.append(world.spawn_structure(dd, SimWorld.NEUTRAL_TEAM, -1, site.x, site.y, true))
 	world.radfield.add_source(7000, 8800, world.plant_x, world.plant_y, 1_100_000)
+	var pts: Array = []
+	for d: int in depots:
+		pts.append(Vector2i(world.transform.x[d], world.transform.y[d]))
+	mark(pts)
 	_o_base = add_objective(world, "Build a barracks and a motor pool")
 	_o_depots = add_objective(world, "Capture both depots")
 	_o_hold = add_objective(world, "Hold at least one depot through three counterattacks")

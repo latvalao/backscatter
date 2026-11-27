@@ -20,6 +20,16 @@ var human_team: int = 0
 ## Enemy player id the director commands (-1 = none).
 var enemy: int = -1
 var rng: SimRng
+## Map markers for the current objectives: [x0, y0, x1, y1, ...] in mm.
+var markers: PackedInt64Array = PackedInt64Array()
+
+
+func mark(points: Array) -> void:
+	markers = PackedInt64Array()
+	for p: Variant in points:
+		var v: Vector2i = p
+		markers.append(v.x)
+		markers.append(v.y)
 
 
 func setup(_world: SimWorld, _settings: MatchSettings) -> void:

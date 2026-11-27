@@ -40,18 +40,23 @@ func _next(world: SimWorld) -> void:
 	match stage:
 		1:
 			add_objective(world, "Move your platoon to the road junction (marked on the minimap)")
+			mark([Vector2i(jx, jy)])
 			say(world, "Left-click or drag a box to select. Right-click the ground to move. Drag with the right button to set the direction they face on arrival.")
 		2:
 			add_objective(world, "Put a rifle squad in the IFV")
+			mark([])
 			say(world, "Select a rifle squad and right-click the IFV to board. U unloads on the spot, T drives to a point and unloads there.")
 		3:
 			add_objective(world, "Find the enemy outpost")
+			mark([Vector2i(world.map_width_mm() * 6 / 10, world.map_height_mm() / 2)])
 			say(world, "Recon teams see furthest. Hold L to check what a unit would see from the cursor. Far contacts show as '?' until you get closer.")
 		4:
 			add_objective(world, "Destroy the outpost")
 			say(world, "A then left-click: attack-move. Y sets the range to open fire at, so your anti-tank team waits for a sure shot. H holds fire.")
 		5:
 			add_objective(world, "Capture the depot with infantry")
+			if depot != 0:
+				mark([Vector2i(world.transform.x[depot], world.transform.y[depot])])
 			say(world, "Infantry captures depots by standing next to them. A held depot earns supply.")
 
 

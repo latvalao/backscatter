@@ -13,7 +13,7 @@ func _ready() -> void:
 	anchor_right = 1.0
 	offset_left = -640
 	offset_right = -12
-	offset_top = 112
+	offset_top = 140
 	alignment = BoxContainer.ALIGNMENT_END
 	var w: SimWorld = controller.runner.world
 	var me: int = controller.local_player()

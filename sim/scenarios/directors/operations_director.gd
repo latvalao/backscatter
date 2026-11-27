@@ -40,6 +40,10 @@ func setup(world: SimWorld, settings: MatchSettings) -> void:
 			spawn_group(world, enemy, ["ec_engineer_veh", "ec_supply_truck", "ec_motor_rifle", "ec_motor_rifle", "ec_ifv_2", "ec_mbt_72"], es.x * SimGrid.CELL_MM - 60000, es.y * SimGrid.CELL_MM, SimConst.ANGLE_HALF)
 			world.ai.append(CommanderAi.new(enemy, "ec", CommanderAi.NORMAL))
 		_o_main = add_objective(world, "Hold all three depots at once for 5 minutes")
+		var pts: Array = []
+		for d: int in depots:
+			pts.append(Vector2i(world.transform.x[d], world.transform.y[d]))
+		mark(pts)
 	else:
 		title = "Operation: Raid on Kaarnavaara"
 		briefing = "An Eastern EW and artillery group works from the edge of the plant zone. Get in, destroy it and get out before the dose gets you."
@@ -48,6 +52,7 @@ func setup(world: SimWorld, settings: MatchSettings) -> void:
 		targets = spawn_group(world, enemy, ["ec_ew_truck", "ec_spg_122", "ec_spg_122", "ec_spaa_23"], px + 200000, py - 250000, SimConst.ANGLE_HALF, 50000)
 		spawn_group(world, enemy, ["ec_motor_rifle", "ec_motor_rifle", "ec_rpg_team", "ec_ifv_2", "ec_mbt_72"], px, py - 450000, 0 - SimConst.ANGLE_QUARTER, 60000)
 		_o_main = add_objective(world, "Destroy the EW truck, both guns and the air defence vehicle")
+		mark([Vector2i(px + 200000, py - 250000)])
 	say(world, briefing)
 
 
