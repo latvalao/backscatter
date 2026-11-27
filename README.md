@@ -10,8 +10,13 @@ Realistic West-vs-East RTS in a radioactive exclusion zone. Godot 4 · PC.
 Requires Godot **4.5.1**.
 
 ```bash
-godot --path .                 # M0 demo: 100 wandering units (WASD pan, wheel zoom, Q/E rotate, P pause, 1-4 speed)
+godot --path .                 # sandbox: you command the Coalition battle group vs a scripted Eastern force
 ```
+
+Controls: LMB select / box, RMB move or attack, Shift queue, Alt+RMB reverse, A attack-move,
+R reverse, F fire mission, G smoke mission, X smoke launchers, S stop, H hold fire,
+Ctrl+1–9 / 1–9 groups, arrows / screen edge / MMB pan, wheel zoom, Q/E rotate,
+PgUp/PgDn pitch, P pause, +/- speed, F9 reveal map, F10 labels.
 
 ## Tests
 
@@ -20,6 +25,8 @@ python3 tools/lint_sim.py                               # determinism rules for 
 godot --headless --path . --import                      # first time: build class cache
 godot --headless --path . -s res://tests/run.gd         # all tests
 godot --headless --path . -s res://tests/run.gd -- --filter=determinism
+godot --headless --path . -s res://tools/check_scripts.gd     # compile every script
+godot --headless --path . -s res://tests/smoke_scene.gd       # boot the sandbox headless
 ```
 
 ## Layout

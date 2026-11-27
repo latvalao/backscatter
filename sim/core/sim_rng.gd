@@ -77,7 +77,14 @@ static func _rotl(x: int, k: int) -> int:
 	return ((x << k) | (x >> (32 - k))) & MASK
 
 
-## MurmurHash3 finalizer — used for seeding only.
+## Stateless 32-bit hash of up to three ints (map generation, lattice noise).
+static func hash3(a: int, b: int, c: int) -> int:
+	var h: int = _fmix32((a & MASK) ^ 0x9E3779B9)
+	h = _fmix32(h ^ (b & MASK))
+	return _fmix32(h ^ (c & MASK))
+
+
+## MurmurHash3 finalizer.
 static func _fmix32(h: int) -> int:
 	var x: int = h & MASK
 	x ^= x >> 16

@@ -14,22 +14,41 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
 - ✅ Headless test runner `tests/run.gd`, `tools/lint_sim.py`, GitHub Actions CI
 - ✅ **Accept:** CI green — determinism test (100 entities × 1000 ticks, identical checksums every tick); 29/29 tests
 
-## M1 — Map, movement, selection ⬜ (next)
-1. `SimGrid` (8 m cells): height, terrain type, per-mobility-class cost, LOS occlusion, cover.
-   Test map baked from a PNG/JSON by `tools/map_baker` (4×4 km = 500×500 cells).
-2. `UnitDef` resource + JSON import → immutable int stat tables; first defs (truck, MBT, squad).
-3. Nav: sector graph (64×64 cells) + cell A* in corridor; flow fields for group moves;
-   "fastest"/"safest" cost profiles (dose/threat hooks stubbed).
-4. Movement: `MoveCommand`, waypoint queue, steering with turn rate, spatial-hash
-   separation avoidance (deterministic), terrain speed modifiers.
-5. Presentation: terrain mesh from grid (decide Terrain3D vs custom mesh — open question),
-   box/drag selection, right-click move, control groups, Shift-queue.
-6. Determinism test v2: entity insertion order permutation; benchmark 200 units @ 60 FPS.
+## M1 — Map, movement, selection ✅
+- ✅ `SimGrid` (8 m cells): height, terrain type, per-mobility step costs, sector cost table
+- ✅ `MapGen`: deterministic integer value-noise map — fields, forest, lakes + bog, rock,
+  two crossing roads, village (4×4 km = 500×500 cells)
+- ✅ `UnitDef`/`WeaponDef` as JSON under `data/` → `content/def_loader.gd` → immutable int
+  `UnitStats`/`WeaponStats` in `DefDb`
+- ✅ Hierarchical pathfinding: sector-graph A* corridor → cell A* (weighted, budgeted,
+  closest-reachable fallback) → road-preserving path smoothing; `safety_cost` hook for M5
+- ✅ Flow fields (Dijkstra) shared by group moves of ≥6 units per mobility class
+- ✅ Formation slots, deterministic separation on a spatial hash, turn rates, kinematic
+  braking, terrain slide, stall detection/repath, Shift-queued orders, reverse move
+- ✅ Presentation: chunked terrain mesh from the grid (custom mesh, decided), MultiMesh
+  trees/houses, RTS camera (edge/arrow/MMB pan, zoom, rotate, pitch 40–70°), box/click
+  selection, right-click orders, control groups, interpolated unit views
+- ✅ **Accept:** 200 mixed units cross the 4×4 km map (≈7 ms/tick sim), ≤4 stragglers,
+  no stacking; determinism incl. shuffled command insertion order
+- Notes: a 300-unit flow field over a large window costs ~1 s in GDScript on the order
+  tick — first candidate for GDExtension or spreading over ticks.
 
-## M2 — Combat core
-Vision/spotting + 3-layer fog of war, `WeaponDef`, armour facing/penetration, damage,
-component/crew hits, infantry squads + suppression/morale, smoke, indirect fire.
-~6 units per faction as data. Scripted 20v20 scenario test.
+## M2 — Combat core ✅
+- ✅ Vision/spotting: optics day/night/thermal × target visibility (unit, terrain, moving,
+  fired), staggered 5-tick scans, LOS over heights + forest/urban/rock depth (~50 m forest)
+- ✅ Fog of war: per-team visible / last known (ghost markers) / unknown; terrain fog shader
+- ✅ Weapons: target scoring (effectiveness × range, threat), own-LOS check, aim/reload,
+  ammo, burst scaled by surviving squad members, loader/gunner/turret effects
+- ✅ Armour facing (front ±45°, rear ±45°, side, top for indirect), penetration, damage
+  roll, component damage (engine/tracks/turret/optics), crew casualties
+- ✅ Infantry squads of individual soldiers, cover, suppression 0–1000, pin, morale, retreat
+- ✅ Projectiles: fire-and-forget vs wire-guided ATGMs (operator LOS/suppression), shells
+- ✅ Indirect fire missions (spotter LOS required, dispersion, blast), smoke (launchers +
+  smoke rounds; thermal sees through at half range)
+- ✅ ~7 units per faction as data (+ supply trucks), attack / attack-move / stop / hold fire
+- ✅ **Accept:** scripted 20v20 resolves (Coalition wins at range as §11 expects), armour
+  facing unit tests, battle determinism
+- Balance is first-pass only; Coalition currently wins the scripted 20v20 decisively.
 
 ## M3 — Lockstep multiplayer + replays
 Command serialization, lockstep scheduler (input delay 3 ticks, adaptive), offline
@@ -50,3 +69,8 @@ dumps, replay record/playback.
 - **Test framework:** a ~100-line built-in runner instead of GUT/gdUnit4 (no addon
   dependency, same `godot --headless -s tests/run.gd` entry point). Can switch later.
 - **Engine version:** pinned to Godot 4.5.1 in CI.
+- **Defs as JSON:** units/weapons live as JSON (human units: m, km/h, s) rather than
+  `.tres`; the loader converts to integer stat tables. Spreadsheet-friendly, per §7.7.
+- **Suppression scale:** stored 0–1000 (tenths of the doc's 0–100).
+- **Terrain tunables** (speeds, cover, concealment, LOS depth) live in
+  `sim/nav/terrain_table.gd` as a constants file.

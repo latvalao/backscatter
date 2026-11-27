@@ -21,7 +21,8 @@ func add_int(v: int) -> void:
 
 
 ## Hash the whole world. Order: tick, rng, entity count, then per entity in
-## ascending id: id, then each component store (fixed order) presence + data.
+## ascending id: id, then each component store (fixed order) presence + data;
+## then team vision, projectiles, smoke and the path request queue.
 static func compute(world: SimWorld) -> int:
 	var h: Checksum = Checksum.new()
 	h.add_int(world.tick)
@@ -32,10 +33,16 @@ static func compute(world: SimWorld) -> int:
 	var stores: Array[ComponentStore] = world.component_stores()
 	for id: int in ids:
 		h.add_int(id)
-		h.add_int(world.team[id])
 		for i: int in range(stores.size()):
 			var store: ComponentStore = stores[i]
 			if store.has(id):
 				h.add_u32(i + 1)
 				store.hash_entity(id, h)
+	for v: TeamVision in world.vision:
+		v.hash_into(h, ids)
+	world.projectiles.hash_into(h)
+	world.smoke.hash_into(h)
+	h.add_int(world.path_requests.size())
+	for pid: int in world.path_requests:
+		h.add_int(pid)
 	return h.value

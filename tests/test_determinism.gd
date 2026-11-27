@@ -1,25 +1,45 @@
-## M0 acceptance: 100 entities, 1000 ticks, checksum identical across two runs.
+## Determinism: identical seed + command log => identical checksum every tick.
 extends TestCase
 
-const ENTITIES: int = 100
-const TICKS: int = 1000
+const UNITS: int = 100
+const TICKS: int = 600
+const DEFS: Array[String] = ["nc_rifle_sqd", "nc_mbt_2a", "nc_ifv_90", "ec_motor_rifle", "ec_mbt_72", "ec_ifv_2"]
 
 
 ## Builds a world through commands only (as a real match would) and runs it,
-## recording the checksum of every tick.
-static func run_match(match_seed: int) -> PackedInt64Array:
-	var w: SimWorld = SimWorld.new(match_seed)
+## recording the checksum of every tick. shuffle_seed permutes the order in
+## which commands are queued (must not matter).
+static func run_match(match_seed: int, shuffle_seed: int = 0) -> PackedInt64Array:
+	var w: SimWorld = SimFixture.world(SimFixture.test_map(), match_seed)
 	var setup: SimRng = SimRng.new(match_seed ^ 0x5EED)
-	for i: int in range(ENTITIES):
-		var c: SpawnDebugUnitCommand = SpawnDebugUnitCommand.new(
-			setup.range_int(0, w.map_width_mm),
-			setup.range_int(0, w.map_height_mm),
-			i % 2,
-			setup.range_int(200, 1500),
-			setup.range_int(5, 40))
-		c.player_id = i % 2
+	var cmds: Array[SimCommand] = []
+	for i: int in range(UNITS):
+		var player: int = i % 2
+		var x: int = setup.range_int(200_000, 1_200_000) + player * 2_600_000
+		var y: int = setup.range_int(500_000, 3_500_000)
+		var c: SpawnUnitCommand = SpawnUnitCommand.new(DEFS[(i % 3) + player * 3], x, y, 0)
+		c.player_id = player
 		c.sequence = i
 		c.tick = 0
+		cmds.append(c)
+	# both sides advance toward each other on tick 5
+	for player: int in range(2):
+		var ids: PackedInt32Array = PackedInt32Array()
+		for k: int in range(UNITS / 2):
+			ids.append(2 * k + 1 + player)
+		var m: MoveCommand = MoveCommand.new(ids, 2_000_000 + (player * 2 - 1) * 300_000, 2_000_000, MoveCommand.MODE_ATTACK_MOVE)
+		m.player_id = player
+		m.sequence = 1000
+		m.tick = 5
+		cmds.append(m)
+	if shuffle_seed != 0:
+		var r: SimRng = SimRng.new(shuffle_seed)
+		for i: int in range(cmds.size() - 1, 0, -1):
+			var j: int = r.range_int(0, i)
+			var tmp: SimCommand = cmds[i]
+			cmds[i] = cmds[j]
+			cmds[j] = tmp
+	for c: SimCommand in cmds:
 		w.queue_command(c)
 	var sums: PackedInt64Array = PackedInt64Array()
 	sums.resize(TICKS)
@@ -29,14 +49,20 @@ static func run_match(match_seed: int) -> PackedInt64Array:
 	return sums
 
 
-func test_same_seed_identical_checksums() -> void:
-	var a: PackedInt64Array = run_match(20261127)
-	var b: PackedInt64Array = run_match(20261127)
-	assert_eq(a.size(), TICKS)
-	for t: int in range(TICKS):
+func _assert_same(a: PackedInt64Array, b: PackedInt64Array) -> void:
+	assert_eq(a.size(), b.size())
+	for t: int in range(a.size()):
 		if a[t] != b[t]:
 			fail("desync at tick %d: %x vs %x" % [t, a[t], b[t]])
 			return
+
+
+func test_same_seed_identical_checksums() -> void:
+	_assert_same(run_match(20261127), run_match(20261127))
+
+
+func test_command_insertion_order_does_not_matter() -> void:
+	_assert_same(run_match(42), run_match(42, 99))
 
 
 func test_different_seed_diverges() -> void:
@@ -45,18 +71,8 @@ func test_different_seed_diverges() -> void:
 	assert_ne(a[TICKS - 1], b[TICKS - 1])
 
 
-func test_entities_actually_move_and_stay_in_bounds() -> void:
-	var w: SimWorld = SimWorld.new(7)
-	var id: int = w.spawn_debug_unit(2_000_000, 2_000_000, 0, 1500, 10)
-	for t: int in range(TICKS):
-		w.step()
-		assert_true(w.in_bounds(w.transform.x[id], w.transform.y[id]), "out of bounds at %d" % t)
-	assert_true(w.transform.x[id] != 2_000_000 or w.transform.y[id] != 2_000_000)
-
-
 func test_periodic_checksum_recorded() -> void:
-	var w: SimWorld = SimWorld.new(3)
-	for t: int in range(41):
-		w.step()
+	var w: SimWorld = SimFixture.world(SimFixture.flat_grid(16, 16), 3)
+	SimFixture.run(w, 41)
 	assert_eq(w.last_checksum_tick, 40)
 	assert_ne(w.last_checksum, 0)

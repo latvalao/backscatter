@@ -1,0 +1,23 @@
+[
+  {"id": "coax_mg", "type": "direct", "range_max_m": 800, "penetration": 6, "damage": 3, "inf_damage": 60,
+   "suppression": 80, "reload_s": 1.5, "aim_s": 0.5, "ammo_capacity": 2000, "ammo_per_shot": 10, "burst": 3,
+   "accuracy_near": 400, "accuracy_far": 60},
+  {"id": "nc_ac_40", "type": "direct", "range_max_m": 2200, "penetration": 95, "damage": 90, "inf_damage": 100,
+   "blast_radius_m": 3, "suppression": 160, "reload_s": 1.2, "aim_s": 1.5, "ammo_capacity": 200,
+   "ammo_per_shot": 3, "burst": 3, "accuracy_near": 750, "accuracy_far": 300},
+  {"id": "ec_ac_30", "type": "direct", "range_max_m": 2000, "penetration": 75, "damage": 70, "inf_damage": 100,
+   "blast_radius_m": 2, "suppression": 140, "reload_s": 1.0, "aim_s": 2, "ammo_capacity": 500,
+   "ammo_per_shot": 4, "burst": 4, "accuracy_near": 650, "accuracy_far": 200},
+  {"id": "nc_gun_120", "type": "direct", "range_max_m": 3500, "penetration": 650, "damage": 750, "inf_damage": 100,
+   "blast_radius_m": 4, "suppression": 300, "reload_s": 6, "aim_s": 1.5, "ammo_capacity": 40,
+   "accuracy_near": 920, "accuracy_far": 560, "projectile_speed_ms": 1600},
+  {"id": "ec_gun_125", "type": "direct", "range_max_m": 3000, "penetration": 600, "damage": 750, "inf_damage": 100,
+   "blast_radius_m": 4, "suppression": 300, "reload_s": 7, "aim_s": 2.5, "ammo_capacity": 40,
+   "accuracy_near": 860, "accuracy_far": 420, "projectile_speed_ms": 1600},
+  {"id": "nc_how_155", "type": "indirect", "range_min_m": 800, "range_max_m": 15000,
+   "penetration": 90, "damage": 650, "inf_damage": 100, "blast_radius_m": 28, "suppression": 650,
+   "reload_s": 10, "aim_s": 6, "ammo_capacity": 36, "projectile_speed_ms": 450, "dispersion_m_per_km": 7},
+  {"id": "ec_how_122", "type": "indirect", "range_min_m": 800, "range_max_m": 12000,
+   "penetration": 60, "damage": 450, "inf_damage": 100, "blast_radius_m": 20, "suppression": 550,
+   "reload_s": 7, "aim_s": 7, "ammo_capacity": 40, "projectile_speed_ms": 400, "dispersion_m_per_km": 11}
+]

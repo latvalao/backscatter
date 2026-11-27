@@ -1,12 +1,27 @@
 # SIM: deterministic — no floats, no Nodes
-## Sim -> presentation notification. Presentation drains world.events after each tick.
+## Sim -> presentation notification. Presentation drains world.events each frame.
+## Never read back by the sim.
 class_name SimEvent
 extends RefCounted
 
-enum Type { SPAWNED, DESTROYED }
+enum Type {
+	SPAWNED,
+	DESTROYED,
+	SHOT,            # entity = shooter, other = target, value = weapon index, x/y = aim point
+	IMPACT,          # other = shooter, value = weapon index, x/y = impact point
+	PENETRATED,      # entity = target, other = shooter, value = face
+	BOUNCED,         # entity = target, other = shooter, value = face
+	SOLDIER_KILLED,  # entity = squad, other = shooter, value = members left
+	SMOKE,           # x/y = cloud centre, value = radius
+	MISSED,          # entity = shooter, other = target, value = weapon index, x/y = miss point
+}
 
 var kind: Type
 var entity_id: int
+var other_id: int
+var value: int
+var x: int
+var y: int
 var tick: int
 
 

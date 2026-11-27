@@ -10,11 +10,15 @@ var world: SimWorld
 ## Sim speed multiplier (single-player/co-op: 0 = paused, 1, 2, 4).
 var speed: int = 1
 ## Max ticks per frame, so a long hitch doesn't spiral.
-var max_catch_up: int = 5
+var max_catch_up: int = 4
+## Wall-clock cost of the last sim tick (ms), for the HUD.
+var last_tick_ms: float = 0.0
 
-## Positions before/after the latest tick, in metres (presentation units).
+## Positions before/after the latest tick, in metres (Godot space).
 var prev_pos: Dictionary = {}  # entity id -> Vector3
 var curr_pos: Dictionary = {}
+var prev_heading: Dictionary = {}  # entity id -> float radians (Godot yaw)
+var curr_heading: Dictionary = {}
 
 var _accum_ms: float = 0.0
 
@@ -43,13 +47,22 @@ func interpolated_position(id: int) -> Vector3:
 	return a.lerp(b, alpha())
 
 
-func snapshot_positions() -> void:
+func interpolated_yaw(id: int) -> float:
+	var b: float = curr_heading.get(id, 0.0)
+	var a: float = prev_heading.get(id, b)
+	return lerp_angle(a, b, alpha())
+
+
+func snapshot() -> void:
 	prev_pos = curr_pos
+	prev_heading = curr_heading
 	curr_pos = {}
+	curr_heading = {}
 	var t: TransformStore = world.transform
 	for id: int in world.entities.ids():
 		if t.has(id):
 			curr_pos[id] = sim_to_view(t.x[id], t.y[id], t.z[id])
+			curr_heading[id] = heading_to_yaw(t.heading[id])
 
 
 ## Sim (x east, y north, z up, mm) -> Godot (x east, y up, -z north, m).
@@ -57,7 +70,18 @@ static func sim_to_view(x_mm: int, y_mm: int, z_mm: int) -> Vector3:
 	return Vector3(x_mm * 0.001, z_mm * 0.001, -y_mm * 0.001)
 
 
+static func view_to_sim(p: Vector3) -> Vector2i:
+	return Vector2i(roundi(p.x * 1000.0), roundi(-p.z * 1000.0))
+
+
+## Binary angle (CCW from east) -> Godot yaw for a model whose front is -Z.
+static func heading_to_yaw(h: int) -> float:
+	return float(h) / SimConst.ANGLE_FULL * TAU - PI * 0.5
+
+
 func _step_once() -> void:
+	var t0: int = Time.get_ticks_usec()
 	world.step()
-	snapshot_positions()
+	last_tick_ms = (Time.get_ticks_usec() - t0) / 1000.0
+	snapshot()
 	ticked.emit(world.tick)

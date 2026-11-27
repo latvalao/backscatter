@@ -28,14 +28,15 @@ func test_invalid_ids_not_alive() -> void:
 
 
 func test_world_destroy_is_deferred_to_cleanup() -> void:
-	var w: SimWorld = SimWorld.new(1)
-	var id: int = w.spawn_debug_unit(1000, 1000, 0, 0, 0)
+	var w: SimWorld = SimFixture.world(SimFixture.flat_grid(32, 32))
+	var id: int = SimFixture.spawn(w, "nc_rifle_sqd", 0, 100, 100)
 	w.destroy_entity(id)
 	assert_true(w.entities.is_alive(id), "still alive until phase 10")
+	assert_false(w.is_unit(id), "but no longer a valid unit")
 	w.step()
 	assert_false(w.entities.is_alive(id))
 	assert_false(w.transform.has(id))
-	assert_false(w.motion.has(id))
+	assert_false(w.units.has(id))
 	var kinds: Array[int] = []
 	for e: SimEvent in w.drain_events():
 		kinds.append(e.kind)

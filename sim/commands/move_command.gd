@@ -1,0 +1,42 @@
+# SIM: deterministic — no floats, no Nodes
+## Move / attack-move / reverse-move to a point, as a formation. queue = Shift.
+class_name MoveCommand
+extends UnitCommand
+
+const MODE_MOVE: int = 0
+const MODE_ATTACK_MOVE: int = 1
+const MODE_REVERSE: int = 2
+
+var x_mm: int
+var y_mm: int
+var mode: int
+var queue: bool
+var safe: bool
+
+
+func _init(p_ids: PackedInt32Array = PackedInt32Array(), p_x: int = 0, p_y: int = 0,
+		p_mode: int = MODE_MOVE, p_queue: bool = false, p_safe: bool = false) -> void:
+	unit_ids = p_ids
+	x_mm = p_x
+	y_mm = p_y
+	mode = p_mode
+	queue = p_queue
+	safe = p_safe
+
+
+func validate(world: SimWorld) -> bool:
+	return super.validate(world) and world.in_bounds(x_mm, y_mm) and mode >= 0 and mode <= 2
+
+
+func apply(world: SimWorld) -> void:
+	var kind: int = OrderStore.ATTACK_MOVE if mode == MODE_ATTACK_MOVE else OrderStore.MOVE
+	var flags: int = 0
+	if mode == MODE_REVERSE:
+		flags |= OrderStore.FLAG_REVERSE
+	if safe:
+		flags |= OrderStore.FLAG_SAFE
+	Orders.start_group(world, owned(world), kind, flags, x_mm, y_mm, queue)
+
+
+func type_id() -> StringName:
+	return &"move"
