@@ -203,7 +203,7 @@ func _on_event(w: SimWorld, e: SimEvent) -> void:
 			var p2: Vector3 = SimRunner.sim_to_view(e.x, e.y, 0)
 			p2.y = effects.terrain.height_at(p2)
 			if not wd.smoke:
-				effects.explosion(p2, clampf(wd.blast_radius_mm * 0.0004, 0.8, 9.0), wd.is_indirect())
+				effects.explosion(p2, clampf(wd.blast_radius_mm * 0.00055, 0.8, 11.0), wd.is_indirect())
 
 
 func _spawn(w: SimWorld, id: int) -> void:
@@ -248,6 +248,8 @@ func _destroyed(id: int) -> void:
 				old.queue_free()
 		_free_ghost(id)
 		return
+	if v != null and v.def.is_infantry:
+		v.drop_bodies()
 	_despawn(id)
 
 

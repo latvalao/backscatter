@@ -16,6 +16,7 @@ uniform float pixel_size = 2.0;
 uniform float palette_amount = 0.6;
 uniform float dither_amount = 0.7;
 uniform float outline_amount = 0.35;
+uniform float sharpen = 0.0;
 uniform float speckle = 0.0;
 uniform float grain = 0.03;
 uniform float vignette = 0.25;
@@ -52,7 +53,18 @@ void fragment() {
 	vec3 c;
 	vec2 block = floor(FRAGCOORD.xy / pixel_size);
 	if (pixel_size <= 1.0) {
-		c = texture(screen_tex, SCREEN_UV).rgb;
+		// full resolution: unsharp mask for crisp detail, thin ink edges
+		c = textureLod(screen_tex, SCREEN_UV, 0.0).rgb;
+		vec3 n1 = textureLod(screen_tex, SCREEN_UV + vec2(px.x, 0.0), 0.0).rgb;
+		vec3 n2 = textureLod(screen_tex, SCREEN_UV - vec2(px.x, 0.0), 0.0).rgb;
+		vec3 n3 = textureLod(screen_tex, SCREEN_UV + vec2(0.0, px.y), 0.0).rgb;
+		vec3 n4 = textureLod(screen_tex, SCREEN_UV - vec2(0.0, px.y), 0.0).rgb;
+		vec3 blur = (n1 + n2 + n3 + n4) * 0.25;
+		if (outline_amount > 0.0) {
+			float e = abs(luma(n1) - luma(n2)) + abs(luma(n3) - luma(n4));
+			c *= 1.0 - smoothstep(0.1, 0.3, e) * outline_amount * 0.5;
+		}
+		c = max(c + (c - blur) * sharpen, vec3(0.0));
 	} else {
 		c = sample_block(block, px);
 		if (outline_amount > 0.0) {

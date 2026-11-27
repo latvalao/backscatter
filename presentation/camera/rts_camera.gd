@@ -120,12 +120,13 @@ func _apply() -> void:
 	if _attrs != null:
 		var on: bool = GraphicsSettings.tilt_shift
 		_attrs.dof_blur_far_enabled = on
-		_attrs.dof_blur_near_enabled = on
-		_attrs.dof_blur_far_distance = distance * 1.25
-		_attrs.dof_blur_far_transition = distance * 0.9
-		_attrs.dof_blur_near_distance = distance * 0.55
-		_attrs.dof_blur_near_transition = distance * 0.3
-		_attrs.dof_blur_amount = clampf(0.04 + distance / 4000.0, 0.04, 0.16)
+		_attrs.dof_blur_near_enabled = false
+		# gentle: only the far horizon softens; the play area stays sharp
+		_attrs.dof_blur_far_distance = distance * 2.0
+		_attrs.dof_blur_far_transition = distance * 1.5
+		_attrs.dof_blur_near_distance = distance * 0.35
+		_attrs.dof_blur_near_transition = distance * 0.2
+		_attrs.dof_blur_amount = clampf(0.02 + distance / 10000.0, 0.02, 0.07)
 
 
 ## Ground point under a screen position (ray march over the terrain), or null.

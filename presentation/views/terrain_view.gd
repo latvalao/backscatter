@@ -30,6 +30,9 @@ var _trail_tex: ImageTexture
 var _trail_dirty: bool = false
 var _trail_timer: float = 0.0
 var _fade: PackedVector4Array = PackedVector4Array()
+var _paved: PackedByteArray = PackedByteArray()
+var _cells_img: Image
+var _cells_tex: ImageTexture
 
 
 func build(p_grid: SimGrid) -> void:
@@ -48,12 +51,20 @@ func build(p_grid: SimGrid) -> void:
 	_trail_img = Image.create(maxi(1, int(size_m.x / TRAIL_M)), maxi(1, int(size_m.y / TRAIL_M)), false, Image.FORMAT_RG8)
 	_trail_tex = ImageTexture.create_from_image(_trail_img)
 	material.set_shader_parameter("trail_tex", _trail_tex)
-	# one pixel per cell: R = road, G = village plot (crisp, cell-accurate)
-	var cells: Image = Image.create(grid.width, grid.height, false, Image.FORMAT_RG8)
+	# one pixel per cell: R = road, G = town plot, B = paved (town streets and
+	# the central yards), read crisp by the terrain shader
+	_paved.resize(grid.cell_count())
+	var cells: Image = Image.create(grid.width, grid.height, false, Image.FORMAT_RGBA8)
 	for i: int in range(grid.cell_count()):
 		var t: int = grid.terrain[i]
-		cells.set_pixel(grid.cell_x(i), grid.cell_y(i), Color(1.0 if t == TerrainTable.ROAD else 0.0, 1.0 if t == TerrainTable.URBAN else 0.0, 0.0))
-	material.set_shader_parameter("cells_tex", ImageTexture.create_from_image(cells))
+		var x: int = grid.cell_x(i)
+		var y: int = grid.cell_y(i)
+		if t == TerrainTable.ROAD and _near(x, y, TerrainTable.URBAN, 2):
+			_paved[i] = 1
+		cells.set_pixel(x, y, Color(1.0 if t == TerrainTable.ROAD else 0.0, 1.0 if t == TerrainTable.URBAN else 0.0, float(_paved[i]), 1.0))
+	_cells_img = cells
+	_cells_tex = ImageTexture.create_from_image(cells)
+	material.set_shader_parameter("cells_tex", _cells_tex)
 	for cy: int in range(0, grid.height, CHUNK):
 		for cx: int in range(0, grid.width, CHUNK):
 			var cw: int = mini(CHUNK, grid.width - cx)
@@ -315,6 +326,9 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 						var name: String = _species(gx, gy, hk)
 						_place(species, customs, name, gx, gy, hk, cell_m, 0.75 + float((hk >> 20) & 0x3F) / 63.0 * 0.5)
 				TerrainTable.FIELD:
+					for k2: int in range(3):
+						var ht: int = SimRng.hash3(gx, gy, 300 + k2)
+						_place(props, customs, "tufts", gx, gy, ht, cell_m, 1.0 + float((ht >> 22) & 7) * 0.12)
 					if (h0 & 0x7FF) < 4:
 						_place(props, customs, "bales", gx, gy, h0 >> 2, cell_m, 1.0)
 					elif (h0 & 0x3F) == 5 and _near(gx, gy, TerrainTable.URBAN, 3):
@@ -343,8 +357,12 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 		var xs2: Array[Transform3D] = props[name3]
 		var cu2: PackedColorArray = customs[name3]
 		var mat: Material = foliage_material if name3 == "reeds" or name3 == "tufts" else ModelLibrary.material(4, 3)
-		var far_end: float = 2600.0 if name3.begins_with("house") or name3 == "barn" else (700.0 if name3 == "fence" else 1400.0)
+		var far_end: float = 2600.0 if name3.begins_with("house") or name3 == "barn" else (700.0 if name3 == "fence" else (380.0 if name3 == "tufts" else 1400.0))
 		_multimesh(ModelLibrary.mesh(name3), xs2, cu2, mat, 0.0, far_end, name3 != "tufts")
+
+
+func _is_road(gx: int, gy: int) -> bool:
+	return grid.in_grid(gx, gy) and grid.terrain[grid.index(gx, gy)] == TerrainTable.ROAD
 
 
 func _near(gx: int, gy: int, t: int, r: int) -> bool:
@@ -357,6 +375,17 @@ func _near(gx: int, gy: int, t: int, r: int) -> bool:
 
 ## Power-line poles beside the road every few cells, and the odd abandoned car.
 func _road_props(props: Dictionary, customs: Dictionary, poles: PackedVector3Array, gx: int, gy: int, h0: int, cell_m: float) -> void:
+	if _paved[grid.index(gx, gy)] == 1:
+		# town street: cars parked along the kerb, no power poles (lamps instead)
+		if (h0 & 0x7) < 2:
+			var along_x: bool = _is_road(gx + 1, gy) and _is_road(gx - 1, gy)
+			var side: float = 1.0 if (h0 >> 4) & 1 == 0 else -1.0
+			var off: Vector2 = Vector2(0.0, side * 0.24) if along_x else Vector2(side * 0.24, 0.0)
+			var cp2: Vector3 = Vector3((gx + 0.5 + off.x) * cell_m, 0.0, -(gy + 0.5 + off.y) * cell_m)
+			cp2.y = height_at(cp2)
+			var yaw2: float = (PI * 0.5 if along_x else 0.0) + (float((h0 >> 6) & 7) - 3.5) * 0.02
+			_place_xf(props, customs, "car_%d" % ((h0 >> 9) & 1), Transform3D(Basis(Vector3.UP, yaw2), cp2), h0)
+		return
 	if (h0 & 0x7F) == 3:
 		var cp: Vector3 = Vector3((gx + 0.5) * cell_m, 0.0, -(gy + 0.5) * cell_m)
 		cp.y = height_at(cp)
@@ -617,6 +646,9 @@ func _build_settlement() -> void:
 		var long_x: bool = r.size.x >= r.size.y
 		var basis: Basis = Basis(Vector3.UP, 0.0 if long_x else PI * 0.5)
 		var hk: int = SimRng.hash3(r.position.x, r.position.y, 91)
+		if dist < 7.0:
+			for pc: int in b:
+				_cells_img.set_pixel(grid.cell_x(pc), grid.cell_y(pc), Color(0.0, 1.0, 1.0, 1.0))
 		if dist < 7.0 and r.size.x >= 3 and r.size.y >= 3:
 			_place_xf(props, customs, "panel_block", Transform3D(basis.scaled(Vector3.ONE * clampf(maxf(r.size.x, r.size.y) * cell_m / 30.0, 0.8, 1.1)), world_mid), hk)
 			continue
@@ -628,6 +660,7 @@ func _build_settlement() -> void:
 			_place_xf(props, customs, "church", Transform3D(Basis(Vector3.UP, PI * 0.5 * (hk & 3)), world_mid), hk)
 			continue
 		_houses(b, props, customs, cell_m, hk)
+	_cells_tex.update(_cells_img)
 	if not tower_done and not blocks.is_empty():
 		var tb: Rect2i = _bounds(blocks[far_block])
 		var tp: Vector3 = Vector3((tb.position.x + 0.5) * cell_m, 0.0, -(tb.position.y + 0.5) * cell_m)
@@ -648,7 +681,8 @@ func _build_settlement() -> void:
 	for name: String in props.keys():
 		var xs: Array[Transform3D] = props[name]
 		var tree: bool = name == "birch" or name == "aspen"
-		var mm: MultiMesh = _multimesh(ModelLibrary.mesh(name), xs, customs[name], foliage_material if tree else mat, 0.0, 3000.0 if name != "lamp" and name != "fence" and name != "shed" else 900.0, true)
+		var small: bool = name == "lamp" or name == "fence" or name == "shed" or name == "hedge" or name == "garden_wall"
+		var mm: MultiMesh = _multimesh(ModelLibrary.mesh(name), xs, customs[name], foliage_material if tree else mat, 0.0, 900.0 if small else 3000.0, true)
 		if name.begins_with("house") or name == "shed":
 			_register("house", [mm], xs)
 		elif tree:
@@ -683,17 +717,26 @@ func _houses(b: PackedInt32Array, props: Dictionary, customs: Dictionary, cell_m
 				break
 		var p: Vector3 = Vector3((x + 0.5) * cell_m, 0.0, -(y + 0.5) * cell_m)
 		p.y = height_at(p)
-		if street != Vector2i.ZERO and (x * 3 + y * 5) % 3 == 0 and h % 5 != 0:
+		var to_street: Vector3 = Vector3(street.x, 0, -street.y)
+		if street != Vector2i.ZERO and (x + y) % 2 == 0 and h % 7 != 0:
 			# front (-Z of the model) faces the street, set back behind a front garden
-			var yaw: float = atan2(float(street.x), float(street.y)) + (float(h & 7) - 3.5) * 0.03
-			var sc: float = 0.72 + float((h >> 4) & 7) * 0.025
-			_place_xf(props, customs, "house_%d" % (h & 1), Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), p - Vector3(street.x, 0, -street.y) * cell_m * 0.12), h)
+			var yaw: float = atan2(float(street.x), float(street.y)) + (float(h & 7) - 3.5) * 0.02
+			var v: int = (h >> 3) % 4
+			var sc: float = (0.72 if v < 2 else 0.8) + float((h >> 6) & 7) * 0.02
+			_place_xf(props, customs, "house_%d" % v, Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), p - to_street * cell_m * 0.1), h)
+			_front(props, customs, p, to_street, street, cell_m, h)
 			placed += 1
-		elif street == Vector2i.ZERO and h % 3 == 0:
+		elif street != Vector2i.ZERO:
+			_front(props, customs, p, to_street, street, cell_m, h)
+			if h % 3 == 0:
+				_place(props, customs, "birch" if h % 2 == 0 else "aspen", x, y, h, cell_m, 0.5)
+			elif h % 4 == 1:
+				_place_xf(props, customs, "shed", Transform3D(Basis(Vector3.UP, float(h & 3) * PI * 0.5), p - to_street * cell_m * 0.2), h)
+		elif h % 3 == 0:
 			_place(props, customs, "birch" if h % 2 == 0 else "aspen", x, y, h, cell_m, 0.55)
-		elif street == Vector2i.ZERO and h % 5 == 0:
+		elif h % 5 == 0:
 			_place_xf(props, customs, "shed", Transform3D(Basis(Vector3.UP, float(h & 3) * PI * 0.5), p), h)
-		elif street == Vector2i.ZERO and h % 7 == 1:
+		elif h % 7 == 1:
 			_place_xf(props, customs, "garages", Transform3D(Basis(Vector3.UP, float(h & 1) * PI * 0.5).scaled(Vector3.ONE * 0.55), p), h)
 		for d2: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nx: int = x + d2.x
@@ -702,6 +745,17 @@ func _houses(b: PackedInt32Array, props: Dictionary, customs: Dictionary, cell_m
 				var fp: Vector3 = Vector3((x + 0.5 + d2.x * 0.48) * cell_m, 0.0, -(y + 0.5 + d2.y * 0.48) * cell_m)
 				fp.y = height_at(fp)
 				_place_xf(props, customs, "fence", Transform3D(Basis(Vector3.UP, PI * 0.5 if d2.x != 0 else 0.0), fp), h + d2.x * 7)
+
+
+## Front-garden boundary along the street edge of a plot: hedge, low wall or
+## picket fence, with a gap for the gate.
+func _front(props: Dictionary, customs: Dictionary, p: Vector3, to_street: Vector3, street: Vector2i, cell_m: float, h: int) -> void:
+	var kind: int = (h >> 9) % 3
+	var name: String = ["hedge", "garden_wall", "fence"][kind]
+	var yaw: float = 0.0 if street.y != 0 else PI * 0.5
+	var fp: Vector3 = p + to_street * cell_m * 0.44
+	fp.y = height_at(fp)
+	_place_xf(props, customs, name, Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(1.05, 1.0, 1.0)), fp), h)
 
 
 # ------------------------------------------------------------ battle damage

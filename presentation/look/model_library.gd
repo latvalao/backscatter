@@ -52,6 +52,41 @@ static func material(row: int, camo: int) -> ShaderMaterial:
 	return _materials[key]
 
 
+## Units: the shared material plus a rim light and an ink outline pass
+## (inverted hull, constant width on screen) so they stand out from the ground.
+static func unit_material(row: int, camo: int) -> ShaderMaterial:
+	var key: int = 1000 + row * 10 + camo
+	if not _materials.has(key):
+		var m: ShaderMaterial = material(row, camo).duplicate() as ShaderMaterial
+		m.set_shader_parameter("rim", 0.35)
+		m.next_pass = outline_material()
+		_materials[key] = m
+	return _materials[key]
+
+
+static var _outline: ShaderMaterial
+
+
+static func outline_material() -> ShaderMaterial:
+	if _outline == null:
+		var sh: Shader = Shader.new()
+		sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_front, depth_draw_opaque, shadows_disabled, fog_disabled;
+uniform vec3 ink : source_color = vec3(0.045, 0.042, 0.036);
+uniform float width = 0.0022;
+void vertex() {
+	vec4 vp = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	float s = length(MODEL_MATRIX[0].xyz);
+	VERTEX += NORMAL * clamp(-vp.z, 20.0, 900.0) * width / max(s, 0.01);
+}
+void fragment() { ALBEDO = ink; }
+"""
+		_outline = ShaderMaterial.new()
+		_outline.shader = sh
+	return _outline
+
+
 static func ghost_material() -> ShaderMaterial:
 	if _ghost == null:
 		var sh: Shader = Shader.new()

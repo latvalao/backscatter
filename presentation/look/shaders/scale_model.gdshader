@@ -13,6 +13,7 @@ uniform float wash = 0.8;
 uniform vec3 dust_color : source_color = vec3(0.42, 0.37, 0.28);
 uniform vec3 mud_color : source_color = vec3(0.22, 0.18, 0.12);
 uniform vec3 rust_color : source_color = vec3(0.55, 0.29, 0.18);
+uniform float rim = 0.0;           // units: faint warm rim light so silhouettes read on any ground
 
 global uniform float wetness;
 global uniform float snow_amount;
@@ -124,7 +125,8 @@ void fragment() {
 	METALLIC = metal;
 	AO = mix(1.0, ao, 0.7);
 	AO_LIGHT_AFFECT = 0.4;
-	EMISSION = emit;
+	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	EMISSION = emit + vec3(1.0, 0.93, 0.8) * fres * rim * (1.0 - burn);
 	if (build_alpha < 0.999) {
 		// under construction: screen-door dissolve keeps the opaque pipeline
 		float d = fract(dot(floor(FRAGCOORD.xy), vec2(0.5, 0.25)) + hash(floor(world_pos * 2.0)) * 0.5);

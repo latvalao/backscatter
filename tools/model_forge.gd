@@ -131,6 +131,11 @@ func _nature() -> void:
 	_save_mesh(ForgeNature.stump(), dir + "/stump.res", 0.4)
 	_save_mesh(ForgeNature.house(0), dir + "/house_0.res", 0.8)
 	_save_mesh(ForgeNature.house(1), dir + "/house_1.res", 0.8)
+	_save_mesh(ForgeNature.town_house(2), dir + "/house_2.res", 0.8)
+	_save_mesh(ForgeNature.town_house(3), dir + "/house_3.res", 0.8)
+	_save_mesh(ForgeNature.hedge(), dir + "/hedge.res", 0.3)
+	_save_mesh(ForgeNature.garden_wall(), dir + "/garden_wall.res", 0.5)
+	_save_mesh(ForgeNature.tufts(), dir + "/tufts.res", 0.0)
 	_save_mesh(ForgeNature.border_post(), dir + "/border_post.res", 0.8)
 	_save_mesh(ForgeNature.plant(), dir + "/plant.res", 3.0)
 

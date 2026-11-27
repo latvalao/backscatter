@@ -62,6 +62,17 @@ func _process(_delta: float) -> bool:
 		if _focus != "":
 			var parts: PackedStringArray = _focus.split(",")
 			cam.focus(Vector3(parts[0].to_float(), 0, -parts[1].to_float()))
+			if OS.get_cmdline_user_args().has("--army"):
+				# showcase: two small forces meeting at the focus point
+				var w0: SimWorld = runner.world
+				var fx: int = parts[0].to_int()
+				var fy: int = parts[1].to_int()
+				var blue: Array[String] = ["nc_rifle_sqd", "nc_rifle_sqd", "nc_mbt_2a", "nc_ifv_90", "nc_rifle_sqd", "nc_mbt_2a"]
+				var red: Array[String] = ["ec_motor_rifle", "ec_motor_rifle", "ec_mbt_72", "ec_motor_rifle", "ec_ifv_2"]
+				for i: int in range(blue.size()):
+					w0.spawn_unit(w0.defs.unit(blue[i]), w0.team_of_player(0), 0, (fx - 28 + (i % 2) * 10) * 1000, (fy - 20 + i * 9) * 1000, 0)
+				for j: int in range(red.size()):
+					w0.spawn_unit(w0.defs.unit(red[j]), w0.team_of_player(1), 1, (fx + 24 - (j % 2) * 9) * 1000, (fy - 15 + j * 10) * 1000, 0)
 		var gs: GameScene = _scene as GameScene
 		if OS.get_cmdline_user_args().has("--day"):
 			gs.look.force_preset("overcast")

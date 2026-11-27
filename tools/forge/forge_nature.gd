@@ -140,6 +140,77 @@ static func house(variant: int) -> ForgeMesh:
 	return m
 
 
+## Two-storey town house (variant 2) and hip-roofed bungalow with a porch (3).
+static func town_house(variant: int) -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	if variant == 2:
+		var w: float = 8.5
+		var d: float = 7.0
+		m.box(Vector3(0, -0.6, 0), Vector3(w + 0.2, 1.0, d + 0.2), ForgeModels.N_CONCRETE, 0.04)
+		m.box(Vector3(0, 0.4, 0), Vector3(w, 5.8, d), ForgeModels.PLASTER, 0.06)
+		m.box(Vector3(0, 3.1, 0), Vector3(w + 0.1, 0.18, d + 0.1), ForgeModels.N_CONCRETE, 0.0)
+		m.box(Vector3(0, 6.2, 0), Vector3(w + 0.9, 3.2, d + 1.0), ForgeModels.ROOF, 0.0, Vector2(1.0, 0.02))
+		m.box(Vector3(-w * 0.28, 7.0, 1.2), Vector3(0.8, 3.0, 0.8), ForgeModels.N_CONCRETE, 0.03)
+		for fl: int in range(2):
+			for i: int in range(3):
+				var x: float = -w * 0.33 + i * w * 0.33
+				if fl == 0 and i == 1:
+					m.box(Vector3(x, 0.4, -d * 0.5 - 0.04), Vector3(1.1, 2.2, 0.08), ForgeModels.PLANK, 0.01)
+					m.box(Vector3(x, 2.65, -d * 0.5 - 0.6), Vector3(1.8, 0.12, 1.2), ForgeModels.N_CONCRETE, 0.01)
+					continue
+				var y: float = 1.3 + fl * 2.9
+				m.box(Vector3(x, y, -d * 0.5 - 0.03), Vector3(1.0, 1.3, 0.08), ForgeModels.WINDOW, 0.01)
+				m.box(Vector3(x, y - 0.12, -d * 0.5 - 0.07), Vector3(1.2, 0.12, 0.14), ForgeModels.BIRCH_BARK, 0.01)
+				m.box(Vector3(x, y, d * 0.5 + 0.03), Vector3(1.0, 1.3, 0.08), ForgeModels.WINDOW, 0.01)
+		for z: float in [-d * 0.2, d * 0.2]:
+			m.box(Vector3(w * 0.5 + 0.03, 4.2, z), Vector3(0.08, 1.3, 1.0), ForgeModels.WINDOW, 0.01)
+	else:
+		var w2: float = 9.5
+		var d2: float = 8.0
+		m.box(Vector3(0, -0.6, 0), Vector3(w2 + 0.2, 1.1, d2 + 0.2), ForgeModels.N_CONCRETE, 0.04)
+		m.box(Vector3(0, 0.5, 0), Vector3(w2, 3.0, d2), ForgeModels.PLANK, 0.06)
+		m.box(Vector3(0, 3.5, 0), Vector3(w2 + 1.0, 2.8, d2 + 1.0), ForgeModels.ROOF, 0.0, Vector2(0.45, 0.04))
+		m.box(Vector3(w2 * 0.2, 4.6, -0.6), Vector3(0.7, 2.6, 0.7), ForgeModels.N_CONCRETE, 0.03)
+		# glazed porch on the street side
+		m.box(Vector3(-w2 * 0.2, 0.0, -d2 * 0.5 - 1.2), Vector3(3.6, 2.6, 2.4), ForgeModels.PLANK, 0.04)
+		m.box(Vector3(-w2 * 0.2, 0.8, -d2 * 0.5 - 2.43), Vector3(3.0, 1.2, 0.06), ForgeModels.WINDOW, 0.0)
+		m.box(Vector3(-w2 * 0.2, 2.6, -d2 * 0.5 - 1.2), Vector3(4.0, 0.7, 2.8), ForgeModels.ROOF, 0.0, Vector2(1.0, 0.3), Vector2(0, 0.9))
+		for x2: float in [w2 * 0.12, w2 * 0.34]:
+			m.box(Vector3(x2, 1.4, -d2 * 0.5 - 0.03), Vector3(1.1, 1.2, 0.08), ForgeModels.WINDOW, 0.01)
+			m.box(Vector3(x2, 1.4, d2 * 0.5 + 0.03), Vector3(1.1, 1.2, 0.08), ForgeModels.WINDOW, 0.01)
+	return m
+
+
+## Clipped garden hedge, 6 m along local X.
+static func hedge() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.3, 0), Vector3(6.0, 1.7, 1.1), ForgeModels.SPRUCE, 0.35, Vector2(0.97, 0.8))
+	return m
+
+
+## Low plastered garden wall with posts, 6 m along local X.
+static func garden_wall() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.3, 0), Vector3(6.0, 1.3, 0.35), ForgeModels.PLASTER, 0.04)
+	m.box(Vector3(0, 1.0, 0), Vector3(6.1, 0.12, 0.45), ForgeModels.N_CONCRETE, 0.02)
+	for x: float in [-3.0, 0.0, 3.0]:
+		m.box(Vector3(x, -0.3, 0), Vector3(0.5, 1.6, 0.5), ForgeModels.N_CONCRETE, 0.04)
+	return m
+
+
+## A clump of grass blades (about 0.7 m), for meadow cover near the camera.
+static func tufts() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	for i: int in range(7):
+		var a: float = TAU * i / 7.0 + 0.4
+		var r: float = 0.12 + float(i % 3) * 0.08
+		var h: float = 0.45 + float((i * 5) % 4) * 0.12
+		var lean: Transform3D = Transform3D(Basis(Vector3(-sin(a), 0, cos(a)), 0.35 + float(i % 2) * 0.2), Vector3(cos(a) * r, 0, sin(a) * r))
+		m.box(Vector3(0, -0.05, 0), Vector3(0.09, h, 0.03), ForgeModels.MOSS if i % 3 != 0 else ForgeModels.REED, 0.0, Vector2(0.1, 0.2),
+			Vector2.ZERO, Vector2.ONE, Vector2.ZERO, lean)
+	return m
+
+
 ## Wooden power-line pole with a cross-arm and insulators.
 static func pole() -> ForgeMesh:
 	var m: ForgeMesh = mesh()

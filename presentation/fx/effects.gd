@@ -34,9 +34,19 @@ var _flares: Array[Dictionary] = []  # {light, sprite, t, life, p}
 var _mine_mesh: ImmediateMesh
 var _mine_timer: float = 0.0
 var _observed: Dictionary = {}  # projectile key -> impact point observed by the local team
+## Soldiers killed near a fresh blast are thrown and tumble; others crumple.
+## Bodies stay a while, then sink into the ground.
+const MAX_BODIES: int = 90
+const BODY_TIME: float = 45.0
+static var current: Effects
+var _blasts: Array[Vector4] = []        # x, y, z, size
+var _blast_t: PackedFloat32Array = PackedFloat32Array()
+var _bodies: Array[Dictionary] = []     # {node, vel, spin, t, air, fall}
+var _corpse_mats: Dictionary = {}
 
 
 func _ready() -> void:
+	current = self
 	_imesh = ImmediateMesh.new()
 	_lines = MeshInstance3D.new()
 	_lines.mesh = _imesh
@@ -251,6 +261,10 @@ func muzzle_flash(p: Vector3, big: bool) -> void:
 ## Shell / rocket impact: flash and light, a fireball, thrown dirt and debris,
 ## a rolling smoke billow that drifts with the wind, and a crater for artillery.
 func explosion(p: Vector3, size_m: float, crater: bool) -> void:
+	_blasts.append(Vector4(p.x, p.y, p.z, size_m))
+	_blast_t.append(0.6)
+	if size_m >= 2.0:
+		_shock_ring(p, size_m)
 	muzzle_flash(p + Vector3.UP * size_m * 0.3, size_m > 2.5)
 	_light(p + Vector3.UP * 2.0, 8.0 * size_m * 0.4, size_m * 7.0, 0.25, Color(1.0, 0.6, 0.3))
 	var k: float = clampf(sqrt(size_m) * 0.75, 0.6, 2.2)
@@ -277,16 +291,16 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 	fct.curve = fc
 	fb.scale_curve = fct
 	fb.angle_max = 360.0
-	var fire: GPUParticles3D = _particles(int(clampf(size_m * 4.0, 6, 24)), 0.7, fb, _sprite_mesh(2.4 * k, false, true, true), true)
+	var fire: GPUParticles3D = _particles(int(clampf(size_m * 5.0, 8, 32)), 0.8, fb, _sprite_mesh(3.0 * k, false, true, true), true)
 	fire.position = p + Vector3.UP * 0.8
 	add_child(fire)
 	_transients.append({"node": fire, "t": 1.2, "kind": "free", "size": 0.0})
 	# thrown dirt
 	var pm: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	pm.direction = Vector3(0, 1, 0)
-	pm.spread = 28.0
-	pm.initial_velocity_min = 4.0 * k
-	pm.initial_velocity_max = 8.0 * k
+	pm.spread = 24.0
+	pm.initial_velocity_min = 6.0 * k
+	pm.initial_velocity_max = 12.0 * k
 	pm.gravity = Vector3(0, -16, 0)
 	pm.color = Color(0.36, 0.3, 0.22)
 	pm.scale_min = 0.8
@@ -298,7 +312,7 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 	var dgt: GradientTexture1D = GradientTexture1D.new()
 	dgt.gradient = dg
 	pm.color_ramp = dgt
-	var dirt: GPUParticles3D = _particles(int(clampf(size_m * 5.0, 8, 30)), 1.2, pm, _sprite_mesh(2.2 * k, true, false, true), true)
+	var dirt: GPUParticles3D = _particles(int(clampf(size_m * 7.0, 10, 44)), 1.5, pm, _sprite_mesh(2.2 * k, true, false, true), true)
 	dirt.position = p
 	add_child(dirt)
 	_transients.append({"node": dirt, "t": 2.0, "kind": "free", "size": 0.0})
@@ -319,7 +333,7 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 	var cm: StandardMaterial3D = StandardMaterial3D.new()
 	cm.albedo_color = Color(0.15, 0.12, 0.1)
 	chunk.material = cm
-	var deb: GPUParticles3D = _particles(int(clampf(size_m * 3.0, 4, 18)), 2.2, db, chunk, true)
+	var deb: GPUParticles3D = _particles(int(clampf(size_m * 5.0, 6, 30)), 2.2, db, chunk, true)
 	deb.position = p + Vector3.UP * 0.5
 	add_child(deb)
 	_transients.append({"node": deb, "t": 2.6, "kind": "free", "size": 0.0})
@@ -329,6 +343,128 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 		terrain.stamp_crater(p, size_m * 0.9, 0.45)
 	if terrain != null and size_m >= 3.0:
 		terrain.damage(p, size_m * 1.3, self)
+
+
+## A ground-hugging ring of dust racing out from the blast.
+func _shock_ring(p: Vector3, size_m: float) -> void:
+	var pm: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	pm.emission_ring_axis = Vector3.UP
+	pm.emission_ring_radius = size_m * 0.4
+	pm.emission_ring_inner_radius = size_m * 0.3
+	pm.emission_ring_height = 0.2
+	pm.direction = Vector3(1, 0, 0)
+	pm.spread = 180.0
+	pm.flatness = 1.0
+	pm.radial_velocity_min = size_m * 3.5
+	pm.radial_velocity_max = size_m * 5.0
+	pm.damping_min = size_m * 2.5
+	pm.damping_max = size_m * 3.5
+	pm.gravity = Vector3(0, 0.6, 0)
+	pm.angle_max = 360.0
+	var g: Gradient = Gradient.new()
+	g.set_color(0, Color(0.6, 0.55, 0.46, 0.0))
+	g.add_point(0.1, Color(0.6, 0.55, 0.46, 0.7))
+	g.set_color(g.get_point_count() - 1, Color(0.55, 0.5, 0.42, 0.0))
+	var gt: GradientTexture1D = GradientTexture1D.new()
+	gt.gradient = g
+	pm.color_ramp = gt
+	var c: Curve = Curve.new()
+	c.add_point(Vector2(0, 0.5))
+	c.add_point(Vector2(1, 1.6))
+	var ct: CurveTexture = CurveTexture.new()
+	ct.curve = c
+	pm.scale_curve = ct
+	var r: GPUParticles3D = _particles(int(clampf(size_m * 8.0, 16, 48)), 1.6, pm, _sprite_mesh(1.6 * sqrt(size_m), true, false, true), true)
+	r.explosiveness = 1.0
+	r.position = p + Vector3.UP * 0.5
+	add_child(r)
+	_transients.append({"node": r, "t": 2.0, "kind": "free", "size": 0.0})
+
+
+## A soldier figure leaves its squad: thrown by a fresh blast nearby, or
+## crumpling where he stood.
+static func drop_body(fig: Node3D) -> void:
+	if current == null or not is_instance_valid(current):
+		return
+	current._add_body(fig)
+
+
+func _add_body(fig: Node3D) -> void:
+	var src: MeshInstance3D = fig as MeshInstance3D
+	if src == null or src.mesh == null:
+		return
+	var b: MeshInstance3D = MeshInstance3D.new()
+	b.mesh = src.mesh
+	var m: Material = src.material_override
+	if m != null and m.next_pass != null:
+		var key: int = m.get_instance_id()
+		if not _corpse_mats.has(key):
+			var plain: Material = m.duplicate()
+			plain.next_pass = null
+			(plain as ShaderMaterial).set_shader_parameter("rim", 0.0)
+			_corpse_mats[key] = plain
+		m = _corpse_mats[key]
+	b.material_override = m
+	add_child(b)
+	b.global_transform = fig.global_transform
+	b.rotation.x = 0.0
+	var vel: Vector3 = Vector3.ZERO
+	var spin: Vector3 = Vector3.ZERO
+	var air: bool = false
+	var h: float = float(b.get_instance_id() % 997) / 997.0
+	for i: int in range(_blasts.size() - 1, -1, -1):
+		var bl: Vector4 = _blasts[i]
+		var bp: Vector3 = Vector3(bl.x, bl.y, bl.z)
+		var reach: float = bl.w * 3.0 + 5.0
+		var d: Vector3 = b.global_position - bp
+		d.y = 0.0
+		if bl.w >= 1.5 and d.length() < reach:
+			var push: float = clampf(1.0 - d.length() / reach, 0.25, 1.0) * clampf(bl.w, 1.5, 8.0)
+			var away: Vector3 = d.normalized() if d.length() > 0.2 else Vector3(cos(h * TAU), 0, sin(h * TAU))
+			vel = away * push * (2.5 + h * 2.0) + Vector3.UP * push * (3.0 + h * 2.5)
+			spin = Vector3(8.0 + h * 10.0, (h - 0.5) * 12.0, (0.5 - h) * 9.0)
+			air = true
+			break
+	_bodies.append({"node": b, "vel": vel, "spin": spin, "t": BODY_TIME, "air": air, "fall": 0.0, "dir": 1.0 if h > 0.5 else -1.0})
+	if _bodies.size() > MAX_BODIES:
+		var old: Dictionary = _bodies.pop_front()
+		(old["node"] as Node3D).queue_free()
+
+
+func _update_bodies(delta: float) -> void:
+	for i: int in range(_blasts.size() - 1, -1, -1):
+		_blast_t[i] -= delta
+		if _blast_t[i] <= 0.0:
+			_blasts.remove_at(i)
+			_blast_t.remove_at(i)
+	for j: int in range(_bodies.size() - 1, -1, -1):
+		var bd: Dictionary = _bodies[j]
+		var n: Node3D = bd["node"]
+		var t: float = float(bd["t"]) - delta
+		bd["t"] = t
+		if t <= 0.0:
+			n.queue_free()
+			_bodies.remove_at(j)
+			continue
+		var ground: float = terrain.height_at(n.global_position) if terrain != null else 0.0
+		if bd["air"]:
+			var v: Vector3 = bd["vel"]
+			v.y -= 20.0 * delta
+			bd["vel"] = v
+			n.global_position += v * delta
+			n.rotation += (bd["spin"] as Vector3) * delta
+			if n.global_position.y <= ground and v.y < 0.0:
+				bd["air"] = false
+				n.global_position.y = ground
+				n.rotation = Vector3(-PI * 0.5 * float(bd["dir"]), n.rotation.y, 0.0)
+		elif float(bd["fall"]) < 1.0:
+			var f: float = minf(1.0, float(bd["fall"]) + delta * 2.2)
+			bd["fall"] = f
+			n.rotation.x = -PI * 0.5 * float(bd["dir"]) * f * f
+			n.position.y = ground + 0.15 * f
+		if t < 4.0:
+			n.global_position.y = ground + 0.15 - (4.0 - t) * 0.25
 
 
 func _dust(p: Vector3, size_m: float, col: Color, n: int) -> void:
@@ -434,6 +570,10 @@ func _process(delta: float) -> void:
 			_imesh.surface_set_color(col)
 			_imesh.surface_add_vertex(head)
 		_draw_projectiles(w)
+		# an invisible point pair keeps the surface valid when every tracer just expired
+		_imesh.surface_set_color(Color(0, 0, 0, 0))
+		_imesh.surface_add_vertex(Vector3.ZERO)
+		_imesh.surface_add_vertex(Vector3.ZERO)
 		_imesh.surface_end()
 	for i2: int in range(_transients.size() - 1, -1, -1):
 		var tr2: Dictionary = _transients[i2]
@@ -490,6 +630,7 @@ func _process(delta: float) -> void:
 	if _mine_timer <= 0.0:
 		_mine_timer = 0.5
 		_draw_mines(w)
+	_update_bodies(delta)
 	_wind_timer -= delta
 	if _wind_timer <= 0.0:
 		_wind_timer = 1.0

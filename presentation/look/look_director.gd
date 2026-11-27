@@ -66,6 +66,8 @@ func _ready() -> void:
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.adjustment_enabled = true
 	GraphicsSettings.apply_environment(env, sun)
+	# smooth edges: 4x MSAA from High up (no FXAA: it would smear the ink edges)
+	get_viewport().msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_4X][GraphicsSettings.quality]
 	we.environment = env
 	add_child(we)
 	# screen post (grain / vignette) below the HUD layer
@@ -95,11 +97,12 @@ func _ready() -> void:
 func apply_retro() -> void:
 	var lvl: int = GraphicsSettings.retro
 	var h: float = get_viewport().get_visible_rect().size.y if is_inside_tree() else 900.0
-	var px: float = [1.0, 2.0, 3.0][lvl] * maxf(1.0, roundf(h / 900.0))
+	var px: float = [1.0, 1.0, 3.0][lvl] * maxf(1.0, roundf(h / 900.0))
 	_post.set_shader_parameter("pixel_size", px)
-	_post.set_shader_parameter("palette_amount", [0.0, 0.55, 0.9][lvl])
-	_post.set_shader_parameter("dither_amount", [0.0, 0.7, 1.0][lvl])
-	_post.set_shader_parameter("outline_amount", [0.0, 0.35, 0.55][lvl])
+	_post.set_shader_parameter("palette_amount", [0.0, 0.22, 0.9][lvl])
+	_post.set_shader_parameter("dither_amount", [0.0, 0.3, 1.0][lvl])
+	_post.set_shader_parameter("outline_amount", [0.0, 0.45, 0.55][lvl])
+	_post.set_shader_parameter("sharpen", [0.35, 0.5, 0.0][lvl])
 
 
 ## The palette cube (tools/gen_retro_lut.py): 32 tiles of 32 x 32 -> 3D texture.

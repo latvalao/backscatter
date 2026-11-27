@@ -56,8 +56,10 @@ func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_fact
 	var mat: Material
 	if ghost:
 		mat = ModelLibrary.ghost_material()
-	else:
+	elif def.is_structure:
 		mat = ModelLibrary.material(ModelLibrary.faction_row(faction), ModelLibrary.camo_style(faction))
+	else:
+		mat = ModelLibrary.unit_material(ModelLibrary.faction_row(faction), ModelLibrary.camo_style(faction))
 	ModelLibrary.dress(model, mat)
 	_collect_geoms(model)
 	if not def.is_structure:
@@ -243,8 +245,11 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 	_last_pos = position
 	if def.is_infantry:
 		if _shown_members != u.members_alive[entity_id]:
+			var was: int = _shown_members
 			_shown_members = u.members_alive[entity_id]
 			for m: int in range(_figures.size()):
+				if was > 0 and m >= _shown_members and m < was and visible:
+					Effects.drop_body(_figures[m])
 				_figures[m].visible = m < _shown_members
 		# pinned or dug in: soldiers go prone; moving: they bob along
 		var prone: bool = (u.suppression[entity_id] >= MoraleSystem.PIN_THRESHOLD or FieldSystem.dug_in_bonus(world, entity_id) > 0) and moved < 0.001
@@ -327,8 +332,19 @@ func _aim_turret(world: SimWorld, delta: float) -> void:
 
 ## Destroyed: charred hull, turret blown off on main battle tanks (ammo
 ## cook-off), fire then a lingering smoke column. Stays for the whole match.
+## The last soldiers of a wiped-out squad fall where they stood (or fly).
+func drop_bodies() -> void:
+	if not visible:
+		return
+	for f: Node3D in _figures:
+		if f.visible:
+			Effects.drop_body(f)
+
+
 func make_wreck(fx: Effects) -> void:
 	wrecked = true
+	# wrecks lose the live-unit outline and rim
+	ModelLibrary.dress(model, ModelLibrary.material(ModelLibrary.faction_row(faction), ModelLibrary.camo_style(faction)))
 	if _dust != null:
 		_dust.emitting = false
 	if _ring != null:
