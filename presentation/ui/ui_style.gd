@@ -47,8 +47,14 @@ static func mono_font() -> Font:
 
 
 static func _load(f: String) -> Font:
-	var ff: FontFile = load(FONT_DIR + f) as FontFile
-	return ff if ff != null else ThemeDB.fallback_font
+	# Fonts ship as raw .fontdata files so the editor never imports them (its
+	# TTF importer crashes intermittently on these files); loaded from bytes.
+	var bytes: PackedByteArray = FileAccess.get_file_as_bytes(FONT_DIR + f.replace(".ttf", ".fontdata"))
+	if bytes.is_empty():
+		return ThemeDB.fallback_font
+	var ff: FontFile = FontFile.new()
+	ff.data = bytes
+	return ff
 
 
 static func theme() -> Theme:

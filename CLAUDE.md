@@ -20,3 +20,5 @@
 - Sound effects are synthesised: edit `tools/gen_sfx.py`, run `python3 tools/gen_sfx.py`.
 - Feature roadmap and status: `docs/FEATURES.md`. Scripted modes and missions live in
   `sim/scenarios/directors/` (ScenarioDirector subclasses, deterministic like the AI).
+- UI fonts are raw `presentation/ui/fonts/*.fontdata` (TTF bytes) loaded at runtime, because
+  Godot's TTF importer crashed on them. An export preset must include `*.fontdata` files.
