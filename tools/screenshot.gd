@@ -52,7 +52,7 @@ func _process(_delta: float) -> bool:
 		runner.speed = 4
 		var views: ViewSync = _scene.get("views") as ViewSync
 		views.reveal_all = _reveal
-		views.show_labels = true
+		views.show_labels = false
 		var cam: RtsCamera = _scene.get("cam") as RtsCamera
 		if _zoom > 0.0:
 			cam.set_distance(_zoom)
@@ -60,6 +60,8 @@ func _process(_delta: float) -> bool:
 			var parts: PackedStringArray = _focus.split(",")
 			cam.focus(Vector3(parts[0].to_float(), 0, -parts[1].to_float()))
 		var gs: GameScene = _scene as GameScene
+		if OS.get_cmdline_user_args().has("--day"):
+			gs.look.force_preset("overcast")
 		if _overlays.has("--dosimetry"):
 			gs.dosimetry.toggle()
 		if _overlays.has("--signals"):
@@ -69,7 +71,17 @@ func _process(_delta: float) -> bool:
 		for id: int in runner.world.entities.ids():
 			if runner.world.units.has(id) and runner.world.units.owner[id] == 0 and sel.size() < 6 and not runner.world.is_structure(id):
 				sel.append(id)
+		if OS.get_cmdline_user_args().has("--one") and sel.size() > 1:
+			for id2: int in sel:
+				if runner.world.def_of(id2).id.contains("ifv"):
+					sel = PackedInt32Array([id2])
+					break
 		ctl._set_selection(sel)
+		if not sel.is_empty() and OS.get_cmdline_user_args().has("--orders"):
+			var t: TransformStore = runner.world.transform
+			var dir: int = 1 if t.x[sel[0]] < runner.world.map_width_mm() / 2 else -1
+			ctl.submit(MoveCommand.new(sel, t.x[sel[0]] + dir * 450000, t.y[sel[0]] + 120000, MoveCommand.MODE_ATTACK_MOVE))
+			ctl.submit(MoveCommand.new(sel, t.x[sel[0]] + dir * 700000, t.y[sel[0]] - 100000, MoveCommand.MODE_MOVE, true))
 	if _frame >= _frames:
 		var img: Image = root.get_viewport().get_texture().get_image()
 		img.save_png(_out)

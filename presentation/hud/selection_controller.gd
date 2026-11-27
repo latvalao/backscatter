@@ -7,6 +7,8 @@ extends Control
 
 ## Emitted with the unit ids of every order sent (radio squelch, etc.).
 signal order_sent(ids: PackedInt32Array)
+## Ground point and colour of an order just given (order line pulse).
+signal order_point(pos: Vector3, color: Color)
 
 enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE, SUPPORT, SEIZE, OVERWATCH }
 
@@ -82,6 +84,23 @@ func submit(cmd: SimCommand) -> void:
 		var uc: UnitCommand = cmd as UnitCommand
 		if uc != null:
 			order_sent.emit(uc.unit_ids)
+		var px: Variant = cmd.get("x_mm")
+		var py: Variant = cmd.get("y_mm")
+		if px != null and py != null and (int(px) != 0 or int(py) != 0):
+			var p: Vector3 = SimRunner.sim_to_view(int(px), int(py), 0)
+			var col: Color = Color(0.75, 0.95, 0.75)
+			var mv: MoveCommand = cmd as MoveCommand
+			if mv != null and mv.mode == MoveCommand.MODE_ATTACK_MOVE:
+				col = Color(1.0, 0.62, 0.25)
+			elif cmd is FireMissionCommand or cmd is SupportCommand or cmd is FlareCommand:
+				col = UiStyle.AMBER
+			elif cmd is UnloadCommand:
+				col = UiStyle.CYAN
+			order_point.emit(p, col)
+		elif cmd is AttackCommand:
+			var tgt: int = (cmd as AttackCommand).target_id
+			if runner.world.is_unit(tgt):
+				order_point.emit(runner.interpolated_position(tgt), Color(1.0, 0.33, 0.27))
 
 
 func _process(_delta: float) -> void:
@@ -199,8 +218,19 @@ func _right_drag(a: Vector2, b: Vector2, shift: bool) -> void:
 	submit(MoveCommand.new(_movers(), sa.x, sa.y, MoveCommand.MODE_MOVE, shift, Input.is_key_pressed(KEY_CTRL), formation, face))
 
 
+## Command-card buttons press the action's default key.
+func press_key(code: Key) -> void:
+	var e: InputEventKey = InputEventKey.new()
+	e.keycode = code
+	e.pressed = true
+	_key_code(e, code)
+
+
 func _key(k: InputEventKey) -> void:
-	var code: Key = KeyBindings.translate(k.keycode)
+	_key_code(k, KeyBindings.translate(k.keycode))
+
+
+func _key_code(k: InputEventKey, code: Key) -> void:
 	if code >= KEY_1 and code <= KEY_9:
 		var g: int = code - KEY_0
 		if k.ctrl_pressed:

@@ -115,13 +115,16 @@ func _event(w: SimWorld, e: SimEvent, team: int) -> void:
 
 
 func _draw() -> void:
-	var y: float = 150.0
-	var font: Font = get_theme_default_font()
+	var y: float = 46.0
 	for it: Dictionary in _items:
 		var a: float = clampf(float(it["t"]) / 1.5, 0.0, 1.0)
 		var c: Color = it["color"]
 		c.a = a
-		draw_rect(Rect2(10, y - 15, 4, 19), c)
-		draw_string_outline(font, Vector2(20, y), str(it["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.75 * a))
-		draw_string(font, Vector2(20, y), str(it["text"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, c)
-		y += 22.0
+		var t: String = str(it["text"])
+		var wdt: float = UiStyle.text_width(t, UiStyle.FONT_M) + 22.0
+		var bg: Color = UiStyle.BG_SOFT
+		bg.a *= a
+		draw_rect(Rect2(10, y, wdt, 22), bg)
+		draw_rect(Rect2(10, y, 3, 22), c)
+		UiStyle.text(self, Vector2(20, y + 16), t, UiStyle.FONT_M, Color(UiStyle.TEXT.r, UiStyle.TEXT.g, UiStyle.TEXT.b, a), false)
+		y += 25.0

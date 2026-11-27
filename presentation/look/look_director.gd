@@ -109,7 +109,12 @@ func wanted_preset() -> String:
 	return base_preset
 
 
+## Tools: keep this preset regardless of the sim weather.
+var locked: bool = false
+
+
 func force_preset(name: String) -> void:
+	locked = true
 	base_preset = name
 	current = preset(name)
 	_target = current
@@ -120,7 +125,7 @@ func force_preset(name: String) -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
-	var want: String = wanted_preset()
+	var want: String = base_preset if locked else wanted_preset()
 	if want != _target_name:
 		_from = current
 		_target = preset(want)

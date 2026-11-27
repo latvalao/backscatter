@@ -40,35 +40,43 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if director == null:
 		return
-	var font: Font = get_theme_default_font()
-	var x: float = size.x - 470.0
-	var y: float = 196.0
-	_text(font, Vector2(x, y), director.title.to_upper(), 16, Color(0.95, 0.9, 0.75))
-	y += 24.0
+	var lines: Array = []  # [text, size, color]
+	lines.append([director.title.to_upper(), UiStyle.FONT_M, UiStyle.AMBER])
 	for i: int in range(director.objectives.size()):
 		var st: int = director.objective_state[i]
-		var mark: String = ["[ ]", "[x]", "[!]"][st]
-		var col: Color = [Color(0.92, 0.92, 0.88), Color(0.6, 0.9, 0.6), Color(1.0, 0.5, 0.4)][st]
-		_text(font, Vector2(x, y), "%s %s" % [mark, director.objectives[i]], 14, col)
-		y += 20.0
+		var mark: String = ["-", "Done:", "Failed:"][st]
+		var col: Color = [UiStyle.TEXT, UiStyle.GOOD, UiStyle.BAD][st]
+		for l: String in _wrap(ThemeDB.fallback_font, "%s %s" % [mark, director.objectives[i]], UiStyle.FONT_S + 1, 330.0):
+			lines.append([l, UiStyle.FONT_S + 1, col])
 	var zw: ZoneWarDirector = director as ZoneWarDirector
 	if zw != null:
-		_text(font, Vector2(x, y), "Victory points  Coalition %d   Eastern %d   (target %d)" % [zw.vp[0], zw.vp[1], ZoneWarDirector.VP_TARGET], 14, Color(0.88, 0.71, 0.29))
-		y += 20.0
+		lines.append(["Victory points: Coalition %d, Eastern %d (of %d)" % [zw.vp[0], zw.vp[1], ZoneWarDirector.VP_TARGET], UiStyle.FONT_S + 1, UiStyle.AMBER])
 	var ct: ContainmentDirector = director as ContainmentDirector
 	if ct != null:
 		var next_t: int = ContainmentDirector.FIRST_WAVE + ct.wave * ContainmentDirector.WAVE_GAP - runner.world.tick
-		_text(font, Vector2(x, y), "Assault %d of %d%s" % [ct.wave, ct.waves, ("   next in %d s" % (next_t / 10)) if ct.wave < ct.waves and next_t > 0 else ""], 14, Color(0.88, 0.71, 0.29))
-		y += 20.0
-	# messages, centre bottom
-	var my: float = size.y - 300.0
+		lines.append(["Assault %d of %d%s" % [ct.wave, ct.waves, (", next in %d s" % (next_t / 10)) if ct.wave < ct.waves and next_t > 0 else ""], UiStyle.FONT_S + 1, UiStyle.AMBER])
+	var x: float = size.x - 370.0
+	var h: float = lines.size() * 19.0 + 14.0
+	draw_rect(Rect2(x - 10, 44, 362, h), UiStyle.BG)
+	var y: float = 62.0
+	for l2: Array in lines:
+		UiStyle.text(self, Vector2(x, y), str(l2[0]), int(l2[1]), l2[2] as Color, false)
+		y += 19.0
+	# briefing / hint messages: top centre, under the bar
+	var my: float = 50.0
 	for m: Dictionary in _msgs:
 		var a: float = clampf(float(m["t"]) / 2.0, 0.0, 1.0)
-		var lines: PackedStringArray = _wrap(font, str(m["text"]), 15, 760.0)
-		for l: String in lines:
-			_text(font, Vector2(size.x * 0.5 - 380.0, my), l, 15, Color(1, 1, 0.92, a))
-			my += 20.0
-		my += 8.0
+		var ml: PackedStringArray = _wrap(ThemeDB.fallback_font, str(m["text"]), UiStyle.FONT_M, 600.0)
+		var bx: float = size.x * 0.5 - 315.0
+		var bg: Color = UiStyle.BG
+		bg.a *= a
+		draw_rect(Rect2(bx, my, 630, ml.size() * 20.0 + 12.0), bg)
+		draw_rect(Rect2(bx, my, 3, ml.size() * 20.0 + 12.0), Color(UiStyle.AMBER.r, UiStyle.AMBER.g, UiStyle.AMBER.b, a))
+		var ty: float = my + 21.0
+		for l3: String in ml:
+			UiStyle.text(self, Vector2(bx + 14, ty), l3, UiStyle.FONT_M, Color(1, 1, 0.94, a), false)
+			ty += 20.0
+		my += ml.size() * 20.0 + 18.0
 
 
 func _text(font: Font, p: Vector2, t: String, sz: int, c: Color) -> void:

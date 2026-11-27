@@ -147,7 +147,16 @@ func _ready() -> void:
 	look.camera_rig = cam
 	_focus_start(world, local_team)
 
+	get_window().theme = UiStyle.theme()
+	var lines: OrderLines = OrderLines.new()
+	lines.runner = runner
+	lines.views = views
+	lines.terrain = terrain
+	lines.cam = cam
+	add_child(lines)
 	var ui: CanvasLayer = CanvasLayer.new()
+	ui.layer = 2
+	UiStyle.theme_layer(ui)
 	add_child(ui)
 	controller = SelectionController.new()
 	controller.runner = runner
@@ -155,8 +164,10 @@ func _ready() -> void:
 	controller.cam = cam
 	controller.lockstep = lockstep
 	controller.enabled = not replay_mode and not _loading
+	controller.order_point.connect(lines.ping)
 	ui.add_child(controller)
 	hud = Hud.new()
+	UiStyle.theme_layer(hud)
 	hud.runner = runner
 	hud.controller = controller
 	hud.views = views

@@ -23,9 +23,9 @@ func setup() -> void:
 	anchor_top = 1.0
 	anchor_bottom = 1.0
 	offset_left = 10
-	offset_top = -SIZE_PX - 10
+	offset_top = -SIZE_PX - 10 - 14
 	offset_right = 10 + SIZE_PX
-	offset_bottom = -10
+	offset_bottom = -24
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var g: SimGrid = runner.world.grid
 	var img: Image = Image.create(g.width, g.height, false, Image.FORMAT_RGB8)

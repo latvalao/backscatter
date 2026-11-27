@@ -21,6 +21,7 @@ var _game: GameScene
 
 
 func _ready() -> void:
+	get_window().theme = UiStyle.theme()
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var bg: ColorRect = ColorRect.new()
 	bg.color = Color(0.13, 0.15, 0.15)

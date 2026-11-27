@@ -69,16 +69,6 @@ func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_fact
 	if ghost:
 		return
 	_build_ring()
-	_label = Label3D.new()
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.no_depth_test = true
-	_label.fixed_size = true
-	_label.pixel_size = 0.0012
-	_label.font_size = 20
-	_label.outline_size = 6
-	_label.position.y = 6.0
-	_label.visible = false
-	add_child(_label)
 
 
 func _collect_geoms(n: Node) -> void:
@@ -207,6 +197,10 @@ func set_identified(on: bool) -> void:
 		add_child(_proxy)
 	if _proxy != null:
 		_proxy.visible = not on
+
+
+func is_identified() -> bool:
+	return _identified
 
 
 func contact_class() -> String:

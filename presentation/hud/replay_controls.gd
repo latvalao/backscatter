@@ -17,7 +17,7 @@ func _ready() -> void:
 	anchor_right = 0.5
 	offset_left = -330
 	offset_right = 330
-	offset_top = 8
+	offset_top = 42
 	var box: VBoxContainer = VBoxContainer.new()
 	add_child(box)
 	var row: HBoxContainer = HBoxContainer.new()
