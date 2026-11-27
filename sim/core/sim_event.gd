@@ -20,6 +20,10 @@ enum Type {
 	DEFEATED,        # other = player, value = team
 	VICTORY,         # value = winning team
 	OUT_OF_FUEL,     # entity = unit
+	RADIATION_CASUALTY,  # entity = unit that lost a soldier / crewman to ARS
+	SIGNAL_FIX,      # entity = emitter, other = team that fixed it, value = radius mm, x/y = estimate
+	JAMMED,          # entity = unit whose link was jammed
+	DRONE_LOST,      # entity = drone
 }
 
 var kind: Type

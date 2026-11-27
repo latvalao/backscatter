@@ -5,6 +5,8 @@ class_name FireMissionCommand
 extends UnitCommand
 
 const SPOTTER_HEIGHT_MM: int = 1000
+## A signal fix this tight is a valid artillery target (§5.5).
+const MAX_FIX_RADIUS_MM: int = 150000
 
 var x_mm: int
 var y_mm: int
@@ -26,7 +28,14 @@ func validate(world: SimWorld) -> bool:
 		return false
 	if _artillery(world).is_empty():
 		return false
-	return is_observed(world, world.team_of_player(player_id), x_mm, y_mm)
+	var team: int = world.team_of_player(player_id)
+	return is_observed(world, team, x_mm, y_mm) or world.signals[team].targetable(x_mm, y_mm, MAX_FIX_RADIUS_MM) \
+		or is_barrage(world)
+
+
+## Eastern Barrage Doctrine (§3.2): pre-planned fire on unobserved map grids.
+func is_barrage(world: SimWorld) -> bool:
+	return world.players.faction[player_id] == "ec"
 
 
 ## Owned units with an indirect weapon of the right kind in range of the point.
@@ -64,6 +73,9 @@ static func is_observed(world: SimWorld, team: int, x: int, y: int) -> bool:
 
 func apply(world: SimWorld) -> void:
 	var flags: int = OrderStore.FLAG_SMOKE if smoke else 0
+	var team: int = world.team_of_player(player_id)
+	if is_barrage(world) and not is_observed(world, team, x_mm, y_mm) and not world.signals[team].targetable(x_mm, y_mm, MAX_FIX_RADIUS_MM):
+		flags |= OrderStore.FLAG_BARRAGE
 	for id: int in _artillery(world):
 		world.orders.queue.erase(id)
 		Orders.start(world, id, OrderStore.FIRE_MISSION, flags, x_mm, y_mm, 0)

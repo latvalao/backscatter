@@ -42,6 +42,11 @@ static func compute(world: SimWorld) -> int:
 		v.hash_into(h, ids)
 	world.projectiles.hash_into(h)
 	world.players.hash_into(h)
+	world.weather.hash_into(h)
+	for si: SignalIntel in world.signals:
+		si.hash_into(h)
+	h.add_int(world.pending_spots.size())
+	world.radfield.hash_into(h)
 	h.add_int(world.winner_team)
 	world.smoke.hash_into(h)
 	h.add_int(world.path_requests.size())

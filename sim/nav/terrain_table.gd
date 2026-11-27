@@ -16,8 +16,10 @@ const NAMES: Array[String] = ["road", "field", "forest", "bog", "water", "urban"
 const FOOT: int = 0
 const WHEELED: int = 1
 const TRACKED: int = 2
+## Ground classes with grid cost tables. AIR flies over everything (no grid costs).
 const MOBILITY_COUNT: int = 3
-const MOBILITY_NAMES: Array[String] = ["foot", "wheeled", "tracked"]
+const AIR: int = 3
+const MOBILITY_NAMES: Array[String] = ["foot", "wheeled", "tracked", "air"]
 
 ## Speed multiplier permille, indexed [mobility * COUNT + terrain]. 0 = impassable.
 const SPEED: Array[int] = [

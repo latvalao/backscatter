@@ -16,7 +16,7 @@ func step(world: SimWorld, tick: int) -> void:
 			continue
 		var has_players: bool = false
 		for p: int in range(world.players.count()):
-			if world.players.team[p] == team:
+			if world.players.team[p] == team and world.players.faction[p] != "mr":
 				has_players = true
 		if not has_players:
 			continue

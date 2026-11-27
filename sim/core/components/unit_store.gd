@@ -8,6 +8,11 @@ const DMG_TRACKS: int = 2
 const DMG_TURRET: int = 4
 const DMG_OPTICS: int = 8
 
+const EMCON_EMIT: int = 0
+const EMCON_RESTRICTED: int = 1
+const EMCON_SILENT: int = 2
+const EMCON_NAMES: Array[String] = ["EMIT", "RESTRICTED", "SILENT"]
+
 const STANCE_FIRE_AT_WILL: int = 0
 const STANCE_HOLD_FIRE: int = 1
 
@@ -29,6 +34,11 @@ var last_fired_tick: PackedInt32Array = PackedInt32Array()
 var last_hit_tick: PackedInt32Array = PackedInt32Array()
 var last_attacker: PackedInt32Array = PackedInt32Array()
 var kills: PackedInt32Array = PackedInt32Array()
+var emcon: PackedInt32Array = PackedInt32Array()
+## Drones: operator entity id. 0 = none.
+var link: PackedInt32Array = PackedInt32Array()
+## Drones: ticks the control link has been down.
+var link_lost: PackedInt32Array = PackedInt32Array()
 
 
 func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
@@ -49,6 +59,9 @@ func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
 	last_hit_tick[id] = -1000
 	last_attacker[id] = 0
 	kills[id] = 0
+	emcon[id] = EMCON_EMIT
+	link[id] = 0
+	link_lost[id] = 0
 
 
 func _resize_columns(n: int) -> void:
@@ -67,11 +80,14 @@ func _resize_columns(n: int) -> void:
 	last_hit_tick.resize(n)
 	last_attacker.resize(n)
 	kills.resize(n)
+	emcon.resize(n)
+	link.resize(n)
+	link_lost.resize(n)
 
 
 func _cols() -> Array[PackedInt32Array]:
 	return [def_index, team, owner, hp, crew, damage, suppression, morale, members_alive,
-		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills]
+		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills, emcon, link, link_lost]
 
 
 func hash_entity(id: int, h: Checksum) -> void:

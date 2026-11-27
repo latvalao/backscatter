@@ -88,10 +88,72 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
 - Deferred: HQ upgrades (one-time unlocks), helipad, minefields/wire, field hospital and
   decon point (M5), crew recovery.
 
-## M5 — Radiation ⬜ (next)
-## M6 — Backscatter (signature & EW)
-## M7 — AI
-## M8 — Modes & content
+## M5 — Radiation ✅
+- ✅ `RadiationField` (32 m cells): ground (baked hot spots: plant zone + forest/bog pockets)
+  and air (plumes) layers in µSv/h; upwind advection by wind, diffusion, decay, rain-out
+- ✅ Seeded `Weather` (own RNG stream): wind, rain (rain-out, optics), fog (optics, thermal
+  less affected), night flag; changes every 5–12 min
+- ✅ Dose accrual per tick (µSv, exact integer remainder) ÷ protection factor ×
+  trench (×3 infantry) / vehicle pit (×2) × NBC overpressure (Eastern vehicles, ×2, burns fuel)
+- ✅ Contamination pickup in hot ground, adds own dose rate, blocks repair (§5.1)
+- ✅ Dose states (Normal → Critical) drive accuracy, infantry speed, morale cap, capture
+  ban at Severe, ARS casualties at Critical; CBRN / chemical troops + decon point
+  decontaminate; field hospital treats Exposed/Mild
+- ✅ Scripted sarcophagus-breach plume 8–14 min into skirmishes
+- ✅ "Safe" routing: radiation-weighted A* + smoothing that won't cut through hot cells
+  (Ctrl+right-click); dosimetry overlay (D; Coalition exact, Eastern banded unless
+  chemical troops present), cursor dose readout, wind in HUD, Geiger clicks
+- ✅ **Accept:** dose-math tests incl. §11 balance targets (30 min in a moderate hot
+  spot → tank crew Exposed, infantry Severe); plume drifts with wind; safe move avoids it
+- Deferred: iodine stocks, per-soldier dose (dose is per unit), persistent dose (M8 roster).
+
+## M6 — Backscatter (signature & EW) ✅
+- ✅ Emitters as data (radio, drone link, radar, jammer, HQ) with strength; EMCON
+  EMIT / RESTRICTED / SILENT per unit (Z); artillery firing is an unavoidable pulse
+- ✅ Direction finding (HQ, recon, EW truck): noisy bearings → fixes whose radius shrinks
+  with angular separation and repeated bearings; fixes ≤150 m are valid artillery targets
+- ✅ Counter-battery radar: instant 40 m fix on enemy artillery the tick after it fires
+- ✅ Radio nets: off-net (silent or jammed) spotting reaches the team after a courier
+  delay unless a net unit is within 300 m; off-net units still engage what they see
+- ✅ Networked Fires (Coalition): idle on-net mortars/SPGs engage what the net sees
+- ✅ Barrage Doctrine (Eastern): fire missions on unobserved grid (faster, ±50% dispersion)
+- ✅ EW truck jamming: cuts radio nets and drone links in 2.5 km; huge signature itself
+- ✅ Drones (quad / fixed-wing): air mobility, battery, operator link, lost link →
+  fly home → crash; only anti-air weapons engage them; SPAA-23 added
+- ✅ Signal overlay (V): own emission rings, DF bearings, fix circles (red = targetable)
+- ✅ **Accept:** `test_m6_acceptance_ai_counter_battery` (firing SPG located + destroyed by
+  AI CB); jammer kills drone link test; overlay in game
+- Deferred: helicopters (§3.4 rosters), drone-specific overlay polish.
+
+## M7 — AI ✅ (balance follow-up below)
+- ✅ `CommanderAi` (utility-based): economy (doctrine build orders, weighted production,
+  engineers/trucks kept alive, trucks haul stranded depot stock), goals: defend FOB,
+  capture depots, attack known HQ when stronger, recon sweeps, counter-battery, leave
+  fallout; task forces (capture / defend / attack / recon / artillery)
+- ✅ Doctrines: Coalition recon-first + drones, safe routing, shoot-and-scoot; Eastern
+  mass + barrage (incl. on known structures) + EW trucks emitting near the enemy
+- ✅ Unit micro for AI units: resupply when dry, repair when hurt, pinned infantry seek
+  cover, leave hot zones; smoke when hit
+- ✅ Difficulty: think interval 100/50/30 ticks, supply −30/0/+60 per min, Easy knows the
+  enemy HQ (no scouting cheat at Normal+)
+- ✅ Marauders (`MarauderAi`, team 2, optional): forest camps near roads, ambush (hold
+  fire until close), raids on weak targets (trucks first), fall back, reinforcements
+- ✅ Symmetric skirmish maps (point-symmetric terrain, mirrored HQ slots and depot pairs)
+  — the procedural map had a strong east-side advantage that swamped AI comparisons
+- ✅ **Accept:** 30-min AI-vs-AI soak with Marauders (stable, 5–9 ms/tick), Normal AI beats
+  a passive player, Hard never loses to Easy (both slots, mirror faction), AI
+  determinism, co-op lockstep with AI in sync
+- ⚠️ Known issues / follow-ups:
+  - Coalition vs Eastern AI-vs-AI favours the Eastern mass doctrine; needs a balance pass
+    (unit cost vs. combat value, Coalition production priorities) — §11 wants the opposite
+    at range.
+  - Hard vs Easy currently draws over 30 min on the test map (Hard doesn't close out);
+    AI aggression / siege behaviour needs tuning with real maps.
+  - "Loses to a competent player" needs human playtesting.
+- Tuning changes made while building the AI: depot income 90 → 180 SUP/min (stock cap
+  600 → 900); HQ roof armour 60 (mortars can't crack it, howitzers can).
+
+## M8 — Modes & content ⬜ (next — after the graphics pass)
 (Broken down when the previous milestone lands — see DESIGN.md §12 for scope.)
 
 ## Decisions / deviations to confirm

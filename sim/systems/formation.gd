@@ -60,7 +60,7 @@ static func slots(world: SimWorld, ids: PackedInt32Array, x: int, y: int) -> Pac
 			var sy: int = y + (lateral * ry - back * fy) / FixedMath.ONE
 			var mob: int = world.def_of(ids[k]).mobility_class
 			var cell: int = world.grid.cell_at(clampi(sx, 0, world.map_width_mm() - 1), clampi(sy, 0, world.map_height_mm() - 1))
-			var pc: int = world.grid.nearest_passable(mob, cell, 8)
+			var pc: int = cell if mob == TerrainTable.AIR else world.grid.nearest_passable(mob, cell, 8)
 			if pc >= 0 and pc != cell:
 				sx = world.grid.center_x(pc)
 				sy = world.grid.center_y(pc)

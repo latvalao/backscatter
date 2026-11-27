@@ -73,7 +73,7 @@ func _capture(world: SimWorld, d: int) -> void:
 ## Units that can take objectives (severe radiation sickness blocks this in M5).
 static func can_capture(world: SimWorld, id: int) -> bool:
 	var role: String = world.def_of(id).role
-	return role != "logistics"
+	return role != "logistics" and role != "drone" and DoseState.can_capture(world, id)
 
 
 func _income(world: SimWorld, d: int) -> void:

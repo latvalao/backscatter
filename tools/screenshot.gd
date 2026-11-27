@@ -9,6 +9,7 @@ var _frames: int = 200
 var _reveal: bool = false
 var _zoom: float = 0.0
 var _focus: String = ""
+var _overlays: PackedStringArray = PackedStringArray()
 
 
 func _initialize() -> void:
@@ -23,6 +24,8 @@ func _initialize() -> void:
 			_zoom = a.substr(7).to_float()
 		elif a.begins_with("--focus="):
 			_focus = a.substr(8)
+		elif a == "--dosimetry" or a == "--signals":
+			_overlays.append(a)
 	var st: MatchSettings = MatchSettings.default_skirmish()
 	for a2: String in OS.get_cmdline_user_args():
 		if a2 == "--sandbox":
@@ -49,6 +52,11 @@ func _process(_delta: float) -> bool:
 		if _focus != "":
 			var parts: PackedStringArray = _focus.split(",")
 			cam.focus(Vector3(parts[0].to_float(), 0, -parts[1].to_float()))
+		var gs: GameScene = _scene as GameScene
+		if _overlays.has("--dosimetry"):
+			gs.dosimetry.toggle()
+		if _overlays.has("--signals"):
+			gs.signals_overlay.toggle()
 		var ctl: SelectionController = _scene.get("controller") as SelectionController
 		var sel: PackedInt32Array = PackedInt32Array()
 		for id: int in runner.world.entities.ids():

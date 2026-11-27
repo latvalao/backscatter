@@ -119,6 +119,18 @@ func _acquire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, team: in
 		var score: int = eff * 1000 - d / 10
 		# sort ascending on negated score; ties broken by id
 		scored.append(((0x3FFFFFFF - score) << 20) | tgt)
+	# off the radio net a unit still engages what it can see itself
+	if not world.is_on_net(id) and scored.is_empty():
+		for other: int in range(SimWorld.MAX_TEAMS):
+			if not world.is_enemy_team(team, other):
+				continue
+			for tgt: int in world.team_units[other]:
+				var d2: int = _dist(world, id, tgt)
+				if d2 < w.range_min_mm or d2 > mini(w.range_max_mm, 1500000):
+					continue
+				var eff2: int = effectiveness(world, w, id, tgt)
+				if eff2 > 0:
+					scored.append(((0x3FFFFFFF - (eff2 * 1000 - d2 / 10)) << 20) | tgt)
 	if scored.is_empty():
 		return 0
 	scored.sort()
@@ -132,6 +144,8 @@ func _acquire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, team: in
 ## Expected usefulness of weapon w against target (0 = pointless), permille-ish.
 static func effectiveness(world: SimWorld, w: WeaponStats, shooter: int, tgt: int) -> int:
 	var td: UnitStats = world.def_of(tgt)
+	if td.is_air:
+		return 900 if w.anti_air else 0
 	if td.is_infantry:
 		var e: int = mini(1000, w.inf_damage * w.burst * 4)
 		if w.ammo_capacity <= LIMITED_AMMO:
@@ -178,10 +192,13 @@ func _fire(world: SimWorld, id: int, def: UnitStats, slot: int, w: WeaponStats, 
 			Combat.add_suppression(world, tgt, w.suppression / 4)
 
 
-## Indirect weapons only fire on an explicit fire mission.
+## Indirect weapons fire on explicit fire missions, or (Coalition, on the net)
+## at targets the net can see — Networked Fires (§3.1).
 func _fire_mission(world: SimWorld, id: int, def: UnitStats, slot: int, w: WeaponStats, tick: int) -> void:
 	var o: OrderStore = world.orders
 	if o.kind[id] != OrderStore.FIRE_MISSION:
+		if o.kind[id] == OrderStore.NONE and not w.smoke:
+			_networked_fire(world, id, def, w, tick)
 		return
 	var want_smoke: bool = (o.flags[id] & OrderStore.FLAG_SMOKE) != 0
 	if w.smoke != want_smoke:
@@ -197,7 +214,7 @@ func _fire_mission(world: SimWorld, id: int, def: UnitStats, slot: int, w: Weapo
 		return
 	if ws.target[k] != -1:
 		ws.target[k] = -1  # -1 marks "laying on a grid point"
-		ws.aim[k] = w.aim_ticks
+		ws.aim[k] = w.aim_ticks / 2 if (o.flags[id] & OrderStore.FLAG_BARRAGE) != 0 else w.aim_ticks
 	if ws.aim[k] > 0:
 		ws.aim[k] -= 1
 		return
@@ -207,6 +224,8 @@ func _fire_mission(world: SimWorld, id: int, def: UnitStats, slot: int, w: Weapo
 	ws.reload[k] = w.reload_ticks
 	world.units.last_fired_tick[id] = tick
 	var disp: int = w.dispersion_per_km_mm * d / 1000000
+	if (o.flags[id] & OrderStore.FLAG_BARRAGE) != 0:
+		disp = disp * 3 / 2
 	var r: int = world.rng.range_int(0, maxi(0, disp))
 	var ang: int = world.rng.range_int(0, SimConst.ANGLE_MASK)
 	var ix: int = gx + (r * FixedMath.cos_b(ang)) / FixedMath.ONE
@@ -223,3 +242,35 @@ func _fire_mission(world: SimWorld, id: int, def: UnitStats, slot: int, w: Weapo
 static func _dist(world: SimWorld, a: int, b: int) -> int:
 	var t: TransformStore = world.transform
 	return FixedMath.length2(t.x[b] - t.x[a], t.y[b] - t.y[a])
+
+
+const NETWORKED_FIRE_SAFETY_MM: int = 150000
+
+
+## Coalition faction mechanic: idle, on-net indirect-fire units engage enemies
+## that any on-net friendly can see, as long as no friendly is near the target.
+func _networked_fire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, tick: int) -> void:
+	if (id + tick) % 20 != 0 or world.players.faction[world.units.owner[id]] != "nc":
+		return
+	if not world.is_on_net(id) or world.units.stance[id] == UnitStore.STANCE_HOLD_FIRE:
+		return
+	var k: int = id * WeaponStore.MAX_WEAPONS + def.weapons.find(w.index)
+	if world.weapons.ammo[k] < w.ammo_per_shot or world.weapons.reload[k] > 0:
+		return
+	var team: int = world.units.team[id]
+	var t: TransformStore = world.transform
+	for tgt: int in world.visible_enemies[team]:
+		if world.is_air(tgt):
+			continue
+		var d: int = _dist(world, id, tgt)
+		if d < w.range_min_mm or d > w.range_max_mm:
+			continue
+		var safe: bool = true
+		for f: int in world.team_units[team]:
+			if FixedMath.dist2_sq(t.x[f], t.y[f], t.x[tgt], t.y[tgt]) <= NETWORKED_FIRE_SAFETY_MM * NETWORKED_FIRE_SAFETY_MM:
+				safe = false
+				break
+		if safe:
+			Orders.start(world, id, OrderStore.FIRE_MISSION, 0, t.x[tgt], t.y[tgt], 0)
+			world.orders.rounds[id] = 2
+			return

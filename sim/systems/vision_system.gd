@@ -31,8 +31,9 @@ static func observer_ranges(world: SimWorld, obs: int) -> Vector2i:
 	var u: UnitStore = world.units
 	if world.is_structure(obs) and not world.structures.is_complete(obs):
 		return Vector2i(0, 0)
-	var optical: int = def.vision_night_mm if world.is_night else def.vision_day_mm
-	var thermal: int = def.vision_thermal_mm
+	var night: bool = world.is_night or world.weather.night
+	var optical: int = (def.vision_night_mm if night else def.vision_day_mm) * world.weather.optics_factor(false) / 1000
+	var thermal: int = def.vision_thermal_mm * world.weather.optics_factor(true) / 1000
 	var mult: int = 1000
 	if (u.damage[obs] & UnitStore.DMG_OPTICS) != 0:
 		mult = 500
@@ -45,7 +46,8 @@ static func observer_ranges(world: SimWorld, obs: int) -> Vector2i:
 static func target_factor(world: SimWorld, target: int, tick: int) -> int:
 	var def: UnitStats = world.def_of(target)
 	var t: TransformStore = world.transform
-	var f: int = def.visibility * TerrainTable.CONCEAL[world.grid.terrain_at(t.x[target], t.y[target])] / 1000
+	var conceal: int = 1000 if def.is_air else TerrainTable.CONCEAL[world.grid.terrain_at(t.x[target], t.y[target])]
+	var f: int = def.visibility * conceal / 1000
 	var fort: int = world.fortification_cover(t.x[target], t.y[target], def.is_infantry)
 	if fort > 0:
 		f = f * (1000 - fort / 2) / 1000
@@ -92,6 +94,22 @@ func _consider(world: SimWorld, obs: int, tgt: int, ox: int, oy: int, reach: int
 		# visual sight blocked; thermal sees through smoke at half range
 		if d2 > (thr / 2) * (thr / 2):
 			return
-	layer.mark_seen(tgt, t.x[tgt], t.y[tgt], tick, until)
+	if world.is_on_net(obs) or world.is_structure(obs) or _near_net(world, obs):
+		layer.mark_seen(tgt, t.x[tgt], t.y[tgt], tick, until)
+	elif not layer.is_visible(tgt, tick):
+		# off the radio net: the report reaches the team late (courier delay)
+		world.pending_spots.append(PackedInt64Array([tick + SignalSystem.OFF_NET_DELAY, world.units.team[obs], tgt, t.x[tgt], t.y[tgt]]))
 	if los == Los.CLEAR:
 		world.los_cache[(obs << 20) | tgt] = tick
+
+
+const COURIER_RANGE_MM: int = 300000
+
+
+## An off-net observer close to an on-net friendly can pass reports by voice.
+static func _near_net(world: SimWorld, obs: int) -> bool:
+	var t: TransformStore = world.transform
+	for id: int in world.team_units[world.units.team[obs]]:
+		if id != obs and world.is_on_net(id) and FixedMath.dist2_sq(t.x[id], t.y[id], t.x[obs], t.y[obs]) <= COURIER_RANGE_MM * COURIER_RANGE_MM:
+			return true
+	return false

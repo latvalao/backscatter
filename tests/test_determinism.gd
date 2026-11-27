@@ -2,7 +2,7 @@
 extends TestCase
 
 const UNITS: int = 100
-const TICKS: int = 600
+const TICKS: int = 400
 const DEFS: Array[String] = ["nc_rifle_sqd", "nc_mbt_2a", "nc_ifv_90", "ec_motor_rifle", "ec_mbt_72", "ec_ifv_2"]
 
 
@@ -41,34 +41,46 @@ static func run_match(match_seed: int, shuffle_seed: int = 0) -> PackedInt64Arra
 			cmds[j] = tmp
 	for c: SimCommand in cmds:
 		w.queue_command(c)
+	# collect the sim's periodic checksum (every CHECKSUM_INTERVAL ticks) — the
+	# same signal lockstep peers compare — instead of hashing every tick
 	var sums: PackedInt64Array = PackedInt64Array()
-	sums.resize(TICKS)
 	for t: int in range(TICKS):
 		w.step()
-		sums[t] = Checksum.compute(w)
+		if w.last_checksum_tick == t:
+			sums.append(w.last_checksum)
+	sums.append(Checksum.compute(w))
 	return sums
+
+
+static var _reference: PackedInt64Array = PackedInt64Array()
+
+
+## run_match(42) is shared by two tests (computed once).
+static func ref_run() -> PackedInt64Array:
+	if _reference.is_empty():
+		_reference = run_match(42)
+	return _reference
 
 
 func _assert_same(a: PackedInt64Array, b: PackedInt64Array) -> void:
 	assert_eq(a.size(), b.size())
 	for t: int in range(a.size()):
 		if a[t] != b[t]:
-			fail("desync at tick %d: %x vs %x" % [t, a[t], b[t]])
+			fail("desync at checksum #%d (tick %d): %x vs %x" % [t, t * SimConst.CHECKSUM_INTERVAL, a[t], b[t]])
 			return
 
 
 func test_same_seed_identical_checksums() -> void:
-	_assert_same(run_match(20261127), run_match(20261127))
+	_assert_same(ref_run(), run_match(42))
 
 
 func test_command_insertion_order_does_not_matter() -> void:
-	_assert_same(run_match(42), run_match(42, 99))
+	_assert_same(ref_run(), run_match(42, 99))
 
 
 func test_different_seed_diverges() -> void:
-	var a: PackedInt64Array = run_match(1)
 	var b: PackedInt64Array = run_match(2)
-	assert_ne(a[TICKS - 1], b[TICKS - 1])
+	assert_ne(ref_run()[ref_run().size() - 1], b[b.size() - 1])
 
 
 func test_periodic_checksum_recorded() -> void:

@@ -61,6 +61,7 @@ static func hit_chance(world: SimWorld, shooter: int, target: int, w: WeaponStat
 		acc = acc * (1000 - supp * 4 / 10) / 1000
 	if (u.damage[shooter] & UnitStore.DMG_OPTICS) != 0:
 		acc = acc * 700 / 1000
+	acc = acc * DoseState.accuracy(world, shooter) / 1000
 	acc = acc * [700, 1000, 1150][td.size_class] / 1000
 	if world.mobility.has(target) and absi(world.mobility.speed[target]) * 10 > td.max_speed:
 		acc = acc * 850 / 1000
@@ -184,6 +185,8 @@ static func apply_blast(world: SimWorld, x: int, y: int, w: WeaponStats, shooter
 		if d > 2 * r:
 			continue
 		var td: UnitStats = world.def_of(id)
+		if td.is_air:
+			continue
 		world.units.last_hit_tick[id] = world.tick
 		world.units.last_attacker[id] = shooter
 		add_suppression(world, id, w.suppression * (2 * r - d) / (2 * r))

@@ -22,15 +22,18 @@ addon (see `net/transport/steam_transport.gd`).
 Controls: LMB select / box, RMB move or attack, Shift queue, Alt+RMB reverse, A attack-move,
 R reverse, F fire mission, G smoke mission, X smoke launchers, S stop, H hold fire,
 Ctrl+1–9 / 1–9 groups, arrows / screen edge / MMB pan, wheel zoom, Q/E rotate,
-PgUp/PgDn pitch, F1–F8 build/produce buttons, P pause, +/- speed, F9 reveal map (solo),
-F10 labels, F12 save replay, Esc menu.
+PgUp/PgDn pitch, F1–F8 build/produce buttons, Z EMCON (emit / restricted / silent),
+Ctrl+RMB safe route (avoids fallout), D dosimetry overlay, V signal overlay, P pause,
++/- speed, F9 reveal map (solo), F10 labels, F12 save replay, Esc menu.
 
 ## Tests
 
 ```bash
 python3 tools/lint_sim.py                               # determinism rules for sim/
 godot --headless --path . --import                      # first time: build class cache
-godot --headless --path . -s res://tests/run.gd         # all tests
+godot --headless --path . -s res://tests/run.gd -- --fast # everyday suite (~1 min)
+godot --headless --path . -s res://tests/run.gd -- --slow # milestone acceptance + 30-min AI soak (~8 min)
+godot --headless --path . -s res://tests/run.gd         # everything
 godot --headless --path . -s res://tests/run.gd -- --filter=determinism
 godot --headless --path . -s res://tools/check_scripts.gd     # compile every script
 godot --headless --path . -s res://tests/smoke_scene.gd       # boot menu + skirmish + sandbox headless

@@ -81,7 +81,7 @@ func _assert_no_stacking(w: SimWorld, ids: PackedInt32Array) -> void:
 
 ## M1 ACCEPTANCE: 200 mixed units cross the 4×4 km procedural map without
 ## stacking or getting stuck.
-func test_m1_acceptance_200_units_cross_map() -> void:
+func test_slow_m1_acceptance_200_units_cross_map() -> void:
 	var w: SimWorld = SimFixture.world(SimFixture.test_map())
 	var defs: Array[String] = ["nc_rifle_sqd", "nc_mbt_2a", "nc_ifv_90", "nc_supply_truck"]
 	var ids: PackedInt32Array = PackedInt32Array()

@@ -35,7 +35,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 	var sub: Label = Label.new()
-	sub.text = "prototype — M4"
+	sub.text = "prototype — M7"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(sub)
 	_name = LineEdit.new()
@@ -45,7 +45,9 @@ func _ready() -> void:
 
 	_main = VBoxContainer.new()
 	col.add_child(_main)
-	_button(_main, "Skirmish vs AI", _start_skirmish)
+	_button(_main, "Skirmish vs AI — Easy", func() -> void: _start_skirmish(0))
+	_button(_main, "Skirmish vs AI — Normal (+ Marauders)", func() -> void: _start_skirmish(1))
+	_button(_main, "Skirmish vs AI — Hard (+ Marauders)", func() -> void: _start_skirmish(2))
 	_button(_main, "Sandbox battle (combat only)", _start_sandbox)
 	_button(_main, "Host LAN game", _host_lan)
 	_address = LineEdit.new()
@@ -91,8 +93,8 @@ func _process(_delta: float) -> void:
 		_render_roster()
 
 
-func _start_skirmish() -> void:
-	var s: MatchSettings = MatchSettings.default_skirmish()
+func _start_skirmish(difficulty: int) -> void:
+	var s: MatchSettings = MatchSettings.default_skirmish(difficulty, difficulty > 0)
 	s.players[0]["name"] = _name.text
 	s.match_seed = Time.get_ticks_usec()
 	_launch(GameScene.create_offline(s))

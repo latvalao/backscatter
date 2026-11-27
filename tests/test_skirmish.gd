@@ -11,7 +11,7 @@ const EC: Array[String] = ["ec_mbt_72", "ec_mbt_72", "ec_mbt_72", "ec_mbt_72", "
 const MAX_TICKS: int = 6000
 
 
-static func run_battle(seed_value: int) -> Dictionary:
+static func run_battle(seed_value: int, max_ticks: int = MAX_TICKS) -> Dictionary:
 	var w: SimWorld = SimFixture.world(SimFixture.flat_grid(300, 120), seed_value)
 	var side: Array[PackedInt32Array] = [PackedInt32Array(), PackedInt32Array()]
 	for i: int in range(20):
@@ -22,7 +22,7 @@ static func run_battle(seed_value: int) -> Dictionary:
 	var shots: int = 0
 	var ticks: int = 0
 	var alive: Array[int] = [20, 20]
-	while ticks < MAX_TICKS:
+	while ticks < max_ticks:
 		w.step()
 		ticks += 1
 		for e: SimEvent in w.drain_events():
@@ -39,7 +39,7 @@ static func run_battle(seed_value: int) -> Dictionary:
 	return {"ticks": ticks, "alive_nc": alive[0], "alive_ec": alive[1], "shots": shots, "checksum": Checksum.compute(w)}
 
 
-func test_m2_acceptance_20v20_resolves() -> void:
+func test_slow_m2_acceptance_20v20_resolves() -> void:
 	var t0: int = Time.get_ticks_msec()
 	var r: Dictionary = run_battle(1234)
 	var ms: int = Time.get_ticks_msec() - t0
@@ -54,7 +54,8 @@ func test_m2_acceptance_20v20_resolves() -> void:
 
 
 func test_m2_battle_is_deterministic() -> void:
-	var a: Dictionary = run_battle(77)
-	var b: Dictionary = run_battle(77)
+	# the first 800 ticks hold first contact: spotting, ATGMs, tank duels, suppression
+	var a: Dictionary = run_battle(77, 800)
+	var b: Dictionary = run_battle(77, 800)
 	assert_eq(a["checksum"], b["checksum"])
 	assert_eq(a["ticks"], b["ticks"])

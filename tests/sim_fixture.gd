@@ -15,6 +15,10 @@ static func world(grid: SimGrid, seed_value: int = 1) -> SimWorld:
 	var w: SimWorld = SimWorld.new(seed_value, DefLoader.load_default(), grid)
 	w.add_player(0)
 	w.add_player(1)
+	# clear, steady weather so combat tests are about combat
+	w.weather.fog = false
+	w.weather.raining = false
+	w.weather.next_change = 1 << 40
 	return w
 
 

@@ -13,12 +13,12 @@ func test_m4_acceptance_skirmish_loop() -> void:
 	s.match_seed = 4242
 	s.map_seed = 11
 	s.map_cells = 300
-	s.add_player("Attacker", 0, "nc", true)
-	s.add_player("Dummy", 1, "ec", true)
+	s.add_player("Attacker", 0, "nc", true, -1)
+	s.add_player("Dummy", 1, "ec", true, -1)
 	var w: SimWorld = MatchSetup.create(s, DefLoader.load_default())
 	for c: AiController in w.ai:
-		if c.player == 1:
-			(c as SkirmishAi).aggressive = false
+		if c.player == 0:
+			(c as SkirmishAi).aggressive = true
 	var built: Dictionary = {}
 	var produced: int = 0
 	var captured: int = 0

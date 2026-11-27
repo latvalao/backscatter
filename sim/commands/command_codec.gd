@@ -30,6 +30,10 @@ static func create(type: String) -> SimCommand:
 			return CancelProductionCommand.new()
 		"rally":
 			return RallyCommand.new()
+		"emcon":
+			return EmconCommand.new()
+		"launch_drone":
+			return LaunchDroneCommand.new()
 	return null
 
 

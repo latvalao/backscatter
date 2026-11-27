@@ -66,7 +66,7 @@ static func can_place(world: SimWorld, def: UnitStats, cx: int, cy: int) -> bool
 		var x1: int = (cx + def.footprint_w) * SimGrid.CELL_MM + 2000
 		var y1: int = (cy + def.footprint_h) * SimGrid.CELL_MM + 2000
 		for id: int in world.entities.ids():
-			if not world.mobility.has(id) or not world.is_unit(id):
+			if not world.mobility.has(id) or not world.is_unit(id) or world.is_air(id):
 				continue
 			var x: int = world.transform.x[id]
 			var y: int = world.transform.y[id]

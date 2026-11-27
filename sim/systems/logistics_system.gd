@@ -148,6 +148,8 @@ func _repair(world: SimWorld) -> void:
 			var damaged: bool = world.units.hp[id] < def.hp or world.units.damage[id] != 0
 			if not damaged:
 				continue
+			if world.radiation.has(id) and world.radiation.contamination[id] > RadiationSystem.REPAIR_BLOCK_CONTAMINATION:
+				continue  # §5.1: decontaminate before repair
 			var x: int = world.transform.x[id]
 			var y: int = world.transform.y[id]
 			var near: bool = false

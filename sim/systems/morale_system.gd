@@ -24,7 +24,12 @@ func step(world: SimWorld, tick: int) -> void:
 			# better troops shake off suppression faster
 			var decay: int = (8 + def.morale / 100) if quiet else 2
 			u.suppression[id] = maxi(0, s - decay)
-		if quiet and u.suppression[id] < 200 and u.morale[id] < def.morale and tick % 5 == 0:
+		var cap: int = def.morale
+		if world.radiation.has(id):
+			cap -= DoseState.MORALE_PENALTY[DoseState.of(world.radiation.dose[id])]
+		if u.morale[id] > cap:
+			u.morale[id] = maxi(0, cap)
+		elif quiet and u.suppression[id] < 200 and u.morale[id] < cap and tick % 5 == 0:
 			u.morale[id] += 1
 		if def.is_infantry and u.suppression[id] >= BREAK_THRESHOLD and u.morale[id] < 400 \
 				and world.orders.kind[id] != OrderStore.RETREAT:

@@ -7,5 +7,10 @@
   state; every gameplay input is a `SimCommand`; all stats are data in `data/`.
 - Before committing:
   - `python3 tools/lint_sim.py`
-  - `godot --headless --path . --import` (once) then `godot --headless --path . -s res://tests/run.gd`
+  - `godot --headless --path . --import` (once) then
+    `godot --headless --path . -s res://tests/run.gd -- --fast` (~1 min, every change)
+  - long milestone acceptance / soak tests are named `test_slow_*`; run them with
+    `-- --slow` (~8 min) before finishing a milestone. CI runs both, in parallel jobs.
+  - Keep tests lean: smallest map / tick count that still proves the point; reuse
+    the sim's periodic checksum instead of hashing every tick; share reference runs.
 - Godot 4.5.1, GDScript with static types everywhere (untyped declarations are errors).

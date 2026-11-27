@@ -152,6 +152,7 @@ func test_fire_mission_requires_spotter_and_hits_area() -> void:
 	for v: int in victims:
 		w.units.stance[v] = UnitStore.STANCE_HOLD_FIRE
 	w.units.stance[spotter] = UnitStore.STANCE_HOLD_FIRE
+	w.units.stance[spg] = UnitStore.STANCE_HOLD_FIRE  # no Networked Fires extras
 	# unobserved point: rejected
 	SimFixture.cmd(FireMissionCommand.new(PackedInt32Array([spg]), 4_500_000, 900_000, 6), w, 0, 0)
 	w.step()

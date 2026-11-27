@@ -16,6 +16,8 @@ var hud: Hud
 var transport: NetTransport
 var lockstep: Lockstep
 var replay_mode: bool = false
+var dosimetry: DosimetryOverlay
+var signals_overlay: SignalOverlay
 var _saved_replay: bool = false
 
 static var _grid_cache: Dictionary = {}
@@ -98,6 +100,17 @@ func _ready() -> void:
 	fog.local_team = local_team
 	add_child(fog)
 
+	dosimetry = DosimetryOverlay.new()
+	dosimetry.runner = runner
+	dosimetry.terrain = terrain
+	dosimetry.local_player = local_player
+	add_child(dosimetry)
+	signals_overlay = SignalOverlay.new()
+	signals_overlay.runner = runner
+	signals_overlay.terrain = terrain
+	signals_overlay.local_team = local_team
+	add_child(signals_overlay)
+
 	_environment()
 
 	cam = RtsCamera.new()
@@ -122,8 +135,14 @@ func _ready() -> void:
 	hud.scene = self
 	add_child(hud)
 
+	var geiger: Geiger = Geiger.new()
+	geiger.runner = runner
+	geiger.controller = controller
+	add_child(geiger)
+
 	runner.snapshot()
 	fog.setup()
+	dosimetry.setup()
 	terrain.set_fog_enabled(not replay_mode)
 	runner.ticked.connect(_on_tick)
 
@@ -193,6 +212,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				views.reveal_all = not views.reveal_all
 		KEY_F10:
 			views.show_labels = not views.show_labels
+		KEY_D:
+			dosimetry.toggle()
+		KEY_V:
+			signals_overlay.toggle()
 		KEY_F12:
 			hud.banner("Replay saved: " + ProjectSettings.globalize_path(save_replay()))
 		KEY_ESCAPE:

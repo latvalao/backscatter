@@ -20,7 +20,7 @@ var _ended: bool = false
 const HELP: String = "LMB select/box · RMB move / attack (on enemy) / rally (building) · Shift queue · Alt+RMB reverse\n" \
 	+ "A attack-move · R reverse · F fire mission · G smoke mission · X smoke launchers · S stop · H hold fire\n" \
 	+ "F1–F8 build/produce buttons · Ctrl+1-9 set group · 1-9 recall · arrows/edge/MMB pan · wheel zoom · Q/E rotate\n" \
-	+ "P pause · +/- speed · F9 reveal (solo) · F10 labels · F12 save replay · Esc menu"
+	+ "Z EMCON · Ctrl+RMB safe route · D dosimetry · V signals · P pause · +/- speed · F9 reveal · F10 labels · F12 replay · Esc"
 
 
 func _ready() -> void:
@@ -111,10 +111,25 @@ func _process(delta: float) -> void:
 	_msg_timer -= delta
 	if _msg_timer > 0.0:
 		_status.text += "\n" + controller.message
+	_status.text += "\n" + _env_line(w, me)
 	_card.text = _card_text(w)
 	if w.winner_team >= 0 and not _ended:
 		_ended = true
 		banner("VICTORY" if w.winner_team == team else "DEFEAT")
+
+
+func _env_line(w: SimWorld, me: int) -> String:
+	var wx: Weather = w.weather
+	var compass: Array[String] = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
+	var dir: String = compass[((wx.wind_dir + 4096) & 0xFFFF) / 8192]
+	var wtxt: String = "wind → %s %d m/s%s%s%s" % [dir, wx.wind_speed / 1000, "  RAIN" if wx.raining else "",
+		"  FOG" if wx.fog else "", "  NIGHT" if wx.night or w.is_night else ""]
+	var gp: Variant = controller.cam.ground_point(controller.get_viewport().get_mouse_position())
+	if gp != null:
+		var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
+		var banded: bool = scene.dosimetry != null and scene.dosimetry.banded()
+		wtxt += "   cursor: " + DosimetryOverlay.format_rate(w.radfield.rate_at(s.x, s.y), banded)
+	return wtxt
 
 
 func settings_mode() -> String:
@@ -160,6 +175,13 @@ func _card_text(w: SimWorld) -> String:
 		extra += "   cargo %d/%d" % [w.logistics.cargo[id], d.cargo_capacity]
 	lines.append("suppression %d%%   morale %d   kills %d   smoke %d   speed %d km/h%s" % [u.suppression[id] / 10, u.morale[id],
 		u.kills[id], u.smoke_charges[id], absi(w.mobility.speed[id]) * 36 / 1000, extra])
+	if w.radiation.has(id):
+		var dose: int = w.radiation.dose[id]
+		lines.append("dose %d mSv (%s)   contamination %s   EMCON %s%s%s" % [dose / 1000, DoseState.NAMES[DoseState.of(dose)],
+			"%d µSv/h" % w.radiation.contamination[id] if w.radiation.contamination[id] > 0 else "none",
+			UnitStore.EMCON_NAMES[u.emcon[id]], "   OFF NET" if not w.is_on_net(id) else "", "   JAMMED" if w.jammed[id] == 1 else ""])
+	if d.is_air:
+		lines.append("battery %ds   link %s" % [maxi(0, d.battery_ticks - w.logistics.odometer[id]) / 10, "LOST" if u.link_lost[id] > 0 else "ok"])
 	for s: int in range(d.weapons.size()):
 		var wd: WeaponStats = w.defs.weapons[d.weapons[s]]
 		var k: int = id * WeaponStore.MAX_WEAPONS + s

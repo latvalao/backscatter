@@ -8,7 +8,7 @@ extends RefCounted
 const NOISE_ONE: int = 1024
 
 
-static func generate(seed_value: int, width: int, height: int) -> SimGrid:
+static func generate(seed_value: int, width: int, height: int, symmetric: bool = false) -> SimGrid:
 	var g: SimGrid = SimGrid.new(width, height)
 	var h_lo: PackedInt32Array = _noise_field(seed_value, 1, width, height, 96)
 	var h_hi: PackedInt32Array = _noise_field(seed_value, 2, width, height, 24)
@@ -47,8 +47,30 @@ static func generate(seed_value: int, width: int, height: int) -> SimGrid:
 
 	_road(g, seed_value, 21, true, vy)
 	_road(g, seed_value, 22, false, vx)
+	if symmetric:
+		_rotate_halves(g)
 	g.rebuild_sectors()
 	return g
+
+
+## Point symmetry for fair versus maps: the east half becomes the west half
+## rotated 180° about the centre; roads crossing the seam are reconnected.
+static func _rotate_halves(g: SimGrid) -> void:
+	var w: int = g.width
+	var h: int = g.height
+	var half: int = w / 2
+	for y: int in range(h):
+		for x: int in range(half, w):
+			var src: int = g.index(w - 1 - x, h - 1 - y)
+			var dst: int = g.index(x, y)
+			g.terrain[dst] = g.terrain[src]
+			g.ground_mm[dst] = g.ground_mm[src]
+	# reconnect: a road at row r just west of the seam continues at row h-1-r east of it
+	for y: int in range(h):
+		if g.terrain[g.index(half - 1, y)] == TerrainTable.ROAD:
+			var y2: int = h - 1 - y
+			for yy: int in range(mini(y, y2), maxi(y, y2) + 1):
+				g.terrain[g.index(half, yy)] = TerrainTable.ROAD
 
 
 ## A sinuous road crossing the whole map through `through` (row if horizontal).

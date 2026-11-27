@@ -16,6 +16,8 @@ const NAMES: Array[String] = ["idle", "move", "attack-move", "attack", "fire mis
 const FLAG_REVERSE: int = 1
 const FLAG_SAFE: int = 2
 const FLAG_SMOKE: int = 4
+## Eastern pre-planned barrage on an unobserved grid: faster, wider dispersion.
+const FLAG_BARRAGE: int = 8
 
 var kind: PackedInt32Array = PackedInt32Array()
 var flags: PackedInt32Array = PackedInt32Array()

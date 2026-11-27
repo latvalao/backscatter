@@ -37,6 +37,8 @@ var armour_side: int = 0
 var armour_rear: int = 0
 var armour_top: int = 0
 var protection_factor: int = 1
+## Collective NBC overpressure (Eastern vehicles): doubles PF in hot cells, costs fuel.
+var nbc: bool = false
 var crew_slots: int = 0
 var passenger_capacity: int = 0
 
@@ -56,6 +58,26 @@ var built_at: String = ""
 var fuel_capacity: int = 0      # mL; 0 = no fuel needed (infantry)
 var fuel_per_km: int = 0        # mL per km
 var cargo_capacity: int = 0     # SUPPLY a logistics vehicle can carry
+
+# --- air (drones) ---
+var is_air: bool = false
+var altitude_mm: int = 0
+var battery_ticks: int = 0      # flight endurance; 0 = unlimited
+
+# --- signature / EW (§5.5) ---
+const EMIT_NONE: int = 0
+const EMIT_RADIO: int = 1
+const EMIT_DRONE_LINK: int = 2
+const EMIT_RADAR: int = 3
+const EMIT_JAMMER: int = 4
+const EMIT_HQ: int = 5
+const EMIT_NAMES: Array[String] = ["none", "radio", "drone_link", "radar", "jammer", "hq"]
+var emitter_kind: int = EMIT_NONE
+## Signal strength; detectable by direction finding out to strength × 100 m × DF quality.
+var emitter_strength: int = 0
+## Direction-finding quality 0 (none) .. 3 (EW truck).
+var df_quality: int = 0
+var jam_radius_mm: int = 0
 
 # --- structures ---
 var is_structure: bool = false

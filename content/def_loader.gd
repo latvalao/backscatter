@@ -97,6 +97,7 @@ static func _weapon(d: Dictionary) -> WeaponStats:
 	w.projectile_speed = _scaled(d, "projectile_speed_ms", 1000 / SimConst.TICKS_PER_SECOND)
 	w.dispersion_per_km_mm = _scaled(d, "dispersion_m_per_km", 1000)
 	w.smoke = bool(d.get("smoke", false))
+	w.anti_air = bool(d.get("air", false))
 	return w
 
 
@@ -127,6 +128,7 @@ static func _unit(d: Dictionary, db: DefDb) -> UnitStats:
 	u.armour_rear = _i(armour, "rear")
 	u.armour_top = _i(armour, "top")
 	u.protection_factor = maxi(1, _i(d, "pf", 1))
+	u.nbc = bool(d.get("nbc", false))
 	u.crew_slots = 0
 	var crew: Array = d.get("crew", [])
 	for c: Variant in crew:
@@ -157,7 +159,26 @@ static func _unit(d: Dictionary, db: DefDb) -> UnitStats:
 	u.fuel_capacity = _scaled(d, "fuel_l", 1000)
 	u.fuel_per_km = _scaled(d, "fuel_per_km_l", 1000)
 	u.cargo_capacity = _i(d, "cargo")
+	u.is_air = u.mobility_class == TerrainTable.AIR
+	u.is_infantry = u.mobility_class == TerrainTable.FOOT
+	u.altitude_mm = _scaled(d, "altitude_m", 1000)
+	u.battery_ticks = _scaled(d, "battery_s", SimConst.TICKS_PER_SECOND)
+	if u.is_air:
+		u.eye_height_mm = u.altitude_mm
+		u.target_height_mm = u.altitude_mm
+		u.fuel_capacity = 0
+	_emitter(u, d)
 	return u
+
+
+static func _emitter(u: UnitStats, d: Dictionary) -> void:
+	var e: Dictionary = d.get("emitter", {})
+	if not e.is_empty():
+		u.emitter_kind = UnitStats.EMIT_NAMES.find(String(e.get("kind", "none")))
+		assert(u.emitter_kind >= 0, "bad emitter in " + u.id)
+		u.emitter_strength = _i(e, "strength")
+	u.df_quality = _i(d, "df")
+	u.jam_radius_mm = _scaled(d, "jam_radius_m", 1000)
 
 
 ## Structures reuse UnitStats with is_structure set (no mobility, no crew).
@@ -199,4 +220,5 @@ static func _structure(d: Dictionary) -> UnitStats:
 	u.morale = 1000
 	u.members = 1
 	u.mobility_class = TerrainTable.TRACKED
+	_emitter(u, d)
 	return u

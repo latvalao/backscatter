@@ -26,7 +26,7 @@ func _init(p_transport: NetTransport, p_name: String) -> void:
 
 
 func _slot(n: String, team: int, conn: int, ai: bool = false) -> Dictionary:
-	return {"name": n, "team": team, "faction": "nc" if team == 0 else "ec", "ai": ai, "conn": conn}
+	return {"name": n, "team": team, "faction": "nc" if team == 0 else "ec", "ai": ai, "conn": conn, "difficulty": 1}
 
 
 func add_ai(team: int) -> void:
@@ -111,7 +111,7 @@ func start(match_seed: int) -> MatchSettings:
 	s.match_seed = match_seed
 	s.map_seed = map_seed
 	for p: Dictionary in roster:
-		s.add_player(p["name"], p["team"], p["faction"], p["ai"])
+		s.add_player(p["name"], p["team"], p["faction"], p["ai"], int(p.get("difficulty", 1)))
 	transport.send(NetTransport.BROADCAST, NetProtocol.with_var(NetProtocol.START, s.to_dict()))
 	match_started.emit(s, local_player)
 	return s

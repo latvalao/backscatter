@@ -21,6 +21,9 @@ render_mode cull_back;
 uniform sampler2D fog_tex : filter_linear, repeat_disable;
 uniform vec2 map_size_m = vec2(4000.0, 4000.0);
 uniform float fog_enabled = 1.0;
+uniform sampler2D rad_tex : filter_linear, repeat_disable;
+uniform float rad_enabled = 0.0;
+uniform float rad_bands = 0.0;
 varying vec3 world_pos;
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -29,7 +32,16 @@ void fragment() {
 	vec2 uv = vec2(world_pos.x / map_size_m.x, -world_pos.z / map_size_m.y);
 	float seen = texture(fog_tex, uv).r;
 	float f = mix(1.0, mix(0.35, 1.0, seen), fog_enabled);
-	ALBEDO = COLOR.rgb * f;
+	vec3 col = COLOR.rgb * f;
+	if (rad_enabled > 0.5) {
+		float r = texture(rad_tex, uv).r;          // 0..1 = log10(µSv/h) / 7.5
+		if (rad_bands > 0.5) { r = floor(r * 5.0) / 5.0; }
+		float a = smoothstep(0.25, 0.45, r);
+		vec3 heat = mix(vec3(0.95, 0.9, 0.2), vec3(0.95, 0.35, 0.1), smoothstep(0.45, 0.7, r));
+		heat = mix(heat, vec3(0.85, 0.1, 0.6), smoothstep(0.75, 0.95, r));
+		col = mix(col, heat, a * 0.65);
+	}
+	ALBEDO = col;
 	ROUGHNESS = 0.95;
 }
 """
@@ -53,6 +65,15 @@ func build(p_grid: SimGrid) -> void:
 
 func set_fog_texture(tex: Texture2D) -> void:
 	material.set_shader_parameter("fog_tex", tex)
+
+
+func set_rad_texture(tex: Texture2D) -> void:
+	material.set_shader_parameter("rad_tex", tex)
+
+
+func set_rad_enabled(on: bool, banded: bool) -> void:
+	material.set_shader_parameter("rad_enabled", 1.0 if on else 0.0)
+	material.set_shader_parameter("rad_bands", 1.0 if banded else 0.0)
 
 
 func set_fog_enabled(on: bool) -> void:

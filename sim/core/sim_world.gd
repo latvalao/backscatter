@@ -6,10 +6,10 @@
 ##   2. AI planning                      -> AiSystem (scripted opponents until M7)
 ##   3. Orders -> movement               -> MovementSystem
 ##   4. Vision & spotting                -> VisionSystem
-##   5. Signature / DF / jamming         (M6)
+##   5. Signature / DF / jamming         -> SignalSystem (also drones' links)
 ##   6. Weapons + projectiles            -> WeaponSystem, ProjectileSystem
 ##   7. Damage, suppression, morale      -> MoraleSystem (damage applied inline via Combat)
-##   8. Radiation                        (M5)
+##   8. Radiation                        -> RadiationSystem
 ##   9. Logistics / production           -> ConstructionSystem, ProductionSystem,
 ##                                          ObjectiveSystem, LogisticsSystem
 ##  10. Veterancy, cleanup, events       -> VictorySystem, _cleanup()
@@ -40,6 +40,12 @@ var squads: SquadStore = SquadStore.new()
 var structures: StructureStore = StructureStore.new()
 var logistics: LogisticsStore = LogisticsStore.new()
 var players: PlayerStore = PlayerStore.new()
+var radiation: RadiationStore = RadiationStore.new()
+var radfield: RadiationField
+## Kaarnavaara plant position (mm) for scenario/presentation; -1 if none.
+var plant_x: int = -1
+var plant_y: int = -1
+var weather: Weather
 ## Structure id occupying each grid cell (0 = none). Derived from structures.
 var occupancy: PackedInt32Array = PackedInt32Array()
 ## Sim-side AI controllers, stepped in phase 2 in list order.
@@ -63,6 +69,15 @@ var next_flow_id: int = 1
 var team_units: Array[PackedInt32Array] = []
 var visible_enemies: Array[PackedInt32Array] = []
 var los_cache: Dictionary = {}
+## Per-entity flags rebuilt by SignalSystem (phase 5) each tick: 1 = inside an
+## enemy jammer's radius; 1 = on its team's radio net.
+var jammed: PackedByteArray = PackedByteArray()
+var on_net: PackedByteArray = PackedByteArray()
+## Signals intelligence per team: DF bearings and fixes (§5.5).
+var signals: Array[SignalIntel] = []
+## Spotting reports from units off the radio net, delivered late:
+## [deliver_tick, team, target, x, y]
+var pending_spots: Array[PackedInt64Array] = []
 ## FIFO of entity ids waiting for a path.
 var path_requests: PackedInt32Array = PackedInt32Array()
 
@@ -82,18 +97,24 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 	defs = p_defs
 	grid = p_grid.clone()
 	occupancy.resize(grid.cell_count())
+	radfield = RadiationField.new(grid.width_mm(), grid.height_mm())
+	weather = Weather.new(p_seed)
 	pathfinder = PathFinder.new(grid)
+	pathfinder.radiation = radfield
 	spatial = SpatialHash.new(grid.width_mm(), grid.height_mm())
 	for t: int in range(MAX_TEAMS):
 		vision.append(TeamVision.new())
 		team_units.append(PackedInt32Array())
 		visible_enemies.append(PackedInt32Array())
+		signals.append(SignalIntel.new())
 	_systems.append(AiSystem.new())          # 2
 	_systems.append(MovementSystem.new())    # 3
 	_systems.append(VisionSystem.new())      # 4
+	_systems.append(SignalSystem.new())      # 5
 	_systems.append(WeaponSystem.new())      # 6
 	_systems.append(ProjectileSystem.new())  # 6
 	_systems.append(MoraleSystem.new())      # 7
+	_systems.append(RadiationSystem.new())   # 8
 	_systems.append(ConstructionSystem.new())  # 9
 	_systems.append(ProductionSystem.new())    # 9
 	_systems.append(ObjectiveSystem.new())     # 9
@@ -103,7 +124,7 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 
 ## Fixed component store order — part of the checksum definition.
 func component_stores() -> Array[ComponentStore]:
-	var out: Array[ComponentStore] = [transform, units, mobility, orders, weapons, squads, structures, logistics]
+	var out: Array[ComponentStore] = [transform, units, mobility, orders, weapons, squads, structures, logistics, radiation]
 	return out
 
 
@@ -165,6 +186,15 @@ func fortification_cover(x_mm: int, y_mm: int, infantry: bool) -> int:
 	return 0
 
 
+func is_air(id: int) -> bool:
+	return units.has(id) and def_of(id).is_air
+
+
+## On the radio net: has a radio, not SILENT, not jammed (filled by SignalSystem).
+func is_on_net(id: int) -> bool:
+	return id < on_net.size() and on_net[id] == 1
+
+
 func is_dying(id: int) -> bool:
 	return id < _dying.size() and _dying[id] == 1
 
@@ -210,7 +240,7 @@ func emit(type: SimEvent.Type, entity_id: int, other_id: int = 0, value: int = 0
 
 ## Creates a unit from its definition. Position is snapped to the nearest passable cell.
 func spawn_unit(def: UnitStats, team: int, owner: int, x_mm: int, y_mm: int, heading: int) -> int:
-	var cell: int = grid.nearest_passable(def.mobility_class, grid.cell_at(x_mm, y_mm), 16)
+	var cell: int = grid.cell_at(x_mm, y_mm) if def.is_air else grid.nearest_passable(def.mobility_class, grid.cell_at(x_mm, y_mm), 16)
 	if cell < 0:
 		return 0
 	if cell != grid.cell_at(x_mm, y_mm):
@@ -218,12 +248,14 @@ func spawn_unit(def: UnitStats, team: int, owner: int, x_mm: int, y_mm: int, hea
 		y_mm = grid.center_y(cell)
 	assert(not def.is_structure, "use spawn_structure")
 	var id: int = _new_entity()
-	transform.add(id, x_mm, y_mm, grid.ground_at(x_mm, y_mm), heading)
+	transform.add(id, x_mm, y_mm, grid.ground_at(x_mm, y_mm) + def.altitude_mm, heading)
 	units.add(id, def, team, owner)
 	mobility.add(id, def.mobility_class)
 	orders.add(id)
 	weapons.add(id, def, defs)
 	logistics.add(id, def)
+	radiation.add(id)
+	on_net[id] = 1 if def.emitter_kind == UnitStats.EMIT_RADIO else 0
 	if def.is_infantry:
 		squads.add(id, def)
 	vision[team].mark_seen(id, x_mm, y_mm, tick, 0x3FFFFFFF)
@@ -235,6 +267,8 @@ func _new_entity() -> int:
 	var id: int = entities.create()
 	var cap: int = entities.capacity()
 	_dying.resize(cap)
+	jammed.resize(cap)
+	on_net.resize(cap)
 	for v: TeamVision in vision:
 		v.ensure_capacity(cap)
 	return id

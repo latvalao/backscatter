@@ -40,6 +40,8 @@ var projectile_speed: int = 0
 ## Indirect fire dispersion radius per km of range (mm).
 var dispersion_per_km_mm: int = 0
 var smoke: bool = false
+## Can engage aircraft / drones.
+var anti_air: bool = false
 
 
 func is_indirect() -> bool:

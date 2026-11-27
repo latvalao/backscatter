@@ -17,8 +17,11 @@ const DX: Array[int] = [1, -1, 0, 0, 1, -1, 1, -1]
 const DY: Array[int] = [0, 0, 1, -1, 1, 1, -1, -1]
 
 var grid: SimGrid
-## Optional extra per-cell cost for "safest" routing (dose/threat; filled in M5/M7).
-var safety_cost: PackedInt32Array = PackedInt32Array()
+## Radiation field consulted by "safest" routing (dose-rate-weighted costs).
+var radiation: RadiationField
+## Extra cost per 1 µSv/h of dose rate on "safe" paths is rate / SAFE_RATE_DIVISOR.
+const SAFE_RATE_DIVISOR: int = 400
+const SAFE_COST_CAP: int = 60000
 
 var _g: PackedInt32Array = PackedInt32Array()
 var _parent: PackedInt32Array = PackedInt32Array()
@@ -67,7 +70,7 @@ func find_path(mobility: int, start: int, goal: int, safe: bool = false) -> Pack
 				raw = full
 	if raw.is_empty():
 		return raw
-	return smooth(mobility, start, raw)
+	return smooth(mobility, start, raw, safe)
 
 
 ## Sector-level A*. Marks the path's sectors and their neighbours as allowed.
@@ -157,7 +160,8 @@ func _astar(mobility: int, start: int, goal: int, corridor: bool, budget: int, s
 	var w: int = grid.width
 	var hgt: int = grid.height
 	var mc: PackedInt32Array = grid.move_cost[mobility]
-	var use_safety: bool = safe and safety_cost.size() == grid.cell_count()
+	var use_safety: bool = safe and radiation != null
+	var rw: int = radiation.w if radiation != null else 1
 	var gx: int = goal % w
 	var gy: int = goal / w
 	var sxn: int = grid.sectors_x
@@ -197,7 +201,8 @@ func _astar(mobility: int, start: int, goal: int, corridor: bool, budget: int, s
 			if corridor and _sector_allowed[(ny / SimGrid.SECTOR) * sxn + nx / SimGrid.SECTOR] == 0:
 				continue
 			if use_safety:
-				step += safety_cost[nb]
+				# 8 m nav cells -> 32 m radiation cells
+				step += mini(SAFE_COST_CAP, radiation.rate_index((ny / 4) * rw + nx / 4) / SAFE_RATE_DIVISOR)
 			var ng: int = gc + step
 			if _stamp[nb] != sid or ng < _g[nb]:
 				_stamp[nb] = sid
@@ -221,7 +226,7 @@ func _astar(mobility: int, start: int, goal: int, corridor: bool, budget: int, s
 
 ## Drops intermediate cells while a straight line stays passable and never
 ## enters terrain slower than the path it replaces (keeps units on roads).
-func smooth(mobility: int, start: int, path: PackedInt32Array) -> PackedInt32Array:
+func smooth(mobility: int, start: int, path: PackedInt32Array, safe: bool = false) -> PackedInt32Array:
 	var pts: PackedInt32Array = PackedInt32Array([start])
 	pts.append_array(path)
 	var out: PackedInt32Array = PackedInt32Array()
@@ -232,9 +237,12 @@ func smooth(mobility: int, start: int, path: PackedInt32Array) -> PackedInt32Arr
 		var j: int = mini(n - 1, i + SMOOTH_LOOKAHEAD)
 		while j > i + 1:
 			var min_speed: int = 1000
+			var max_rate: int = 0
 			for k: int in range(i, j + 1):
 				min_speed = mini(min_speed, grid.speed(mobility, pts[k]))
-			if line_walkable(mobility, pts[i], pts[j], min_speed):
+				if safe and radiation != null:
+					max_rate = maxi(max_rate, _rate_cell(pts[k]))
+			if line_walkable(mobility, pts[i], pts[j], min_speed, max_rate if safe and radiation != null else -1):
 				best = j
 				break
 			j -= 1
@@ -245,7 +253,12 @@ func smooth(mobility: int, start: int, path: PackedInt32Array) -> PackedInt32Arr
 
 ## Conservative grid line walk between cell centres: every touched cell must be
 ## passable with speed >= min_speed; diagonal steps also check both side cells.
-func line_walkable(mobility: int, a: int, b: int, min_speed: int) -> bool:
+func _rate_cell(c: int) -> int:
+	return radiation.rate_index(((c / grid.width) / 4) * radiation.w + (c % grid.width) / 4)
+
+
+## max_rate >= 0 also rejects lines through cells hotter than the path they replace.
+func line_walkable(mobility: int, a: int, b: int, min_speed: int, max_rate: int = -1) -> bool:
 	var w: int = grid.width
 	var x0: int = a % w
 	var y0: int = a / w
@@ -258,6 +271,8 @@ func line_walkable(mobility: int, a: int, b: int, min_speed: int) -> bool:
 	var err: int = dx + dy
 	while true:
 		if grid.speed(mobility, y0 * w + x0) < min_speed:
+			return false
+		if max_rate >= 0 and _rate_cell(y0 * w + x0) > max_rate + max_rate / 4 + 50:
 			return false
 		if x0 == x1 and y0 == y1:
 			return true

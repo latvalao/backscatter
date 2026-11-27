@@ -38,6 +38,8 @@ func _serve_paths(world: SimWorld) -> void:
 		var o: OrderStore = world.orders
 		if o.kind[id] == OrderStore.NONE or o.kind[id] == OrderStore.FIRE_MISSION:
 			continue
+		if world.mobility.mobility_class[id] == TerrainTable.AIR:
+			continue
 		var start: int = world.grid.cell_at(world.transform.x[id], world.transform.y[id])
 		var goal: int = world.grid.cell_at(o.goal_x[id], o.goal_y[id])
 		var safe: bool = (o.flags[id] & OrderStore.FLAG_SAFE) != 0
@@ -47,6 +49,8 @@ func _serve_paths(world: SimWorld) -> void:
 
 ## Effective max speed in mm/tick from stats, terrain, damage, crew and suppression.
 static func effective_max_speed(world: SimWorld, id: int, def: UnitStats) -> int:
+	if def.is_air:
+		return def.max_speed
 	var u: UnitStore = world.units
 	if def.is_vehicle():
 		if def.has_crew(UnitStats.CREW_DRIVER) and (u.crew[id] & UnitStats.CREW_DRIVER) == 0:
@@ -60,6 +64,8 @@ static func effective_max_speed(world: SimWorld, id: int, def: UnitStats) -> int
 		spd = spd * 300 / 1000
 	if def.is_infantry and u.suppression[id] >= MoraleSystem.PIN_THRESHOLD:
 		spd = spd / 4
+	if def.is_infantry:
+		spd = spd * DoseState.speed(world, id) / 1000
 	var cell: int = world.grid.cell_at(world.transform.x[id], world.transform.y[id])
 	var terrain_speed: int = world.grid.speed(def.mobility_class, cell)
 	if terrain_speed <= 0:
@@ -68,6 +74,9 @@ static func effective_max_speed(world: SimWorld, id: int, def: UnitStats) -> int
 
 
 func _move_unit(world: SimWorld, id: int, tick: int) -> void:
+	if world.def_of(id).is_air:
+		_move_air(world, id)
+		return
 	var t: TransformStore = world.transform
 	var m: MobilityStore = world.mobility
 	var o: OrderStore = world.orders
@@ -200,7 +209,7 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 	_near.clear()
 	world.spatial.query(x, y, def.radius_mm + MAX_RADIUS_MM + SEPARATION_GAP_MM, _near)
 	for other: int in _near:
-		if other == id or not world.mobility.has(other):
+		if other == id or not world.mobility.has(other) or world.mobility.mobility_class[other] == TerrainTable.AIR:
 			continue
 		var od: UnitStats = world.def_of(other)
 		var ddx: int = x - t.x[other]
@@ -325,3 +334,28 @@ func _complete_order(world: SimWorld, id: int) -> void:
 	world.mobility.blocked_ticks[id] = 0
 	if world.orders.dequeue(id, _next_order):
 		Orders.start(world, id, _next_order[0], _next_order[1], _next_order[2], _next_order[3], 0)
+
+
+## Drones fly straight at their goal, ignoring terrain and other units, then loiter.
+func _move_air(world: SimWorld, id: int) -> void:
+	var t: TransformStore = world.transform
+	var o: OrderStore = world.orders
+	var def: UnitStats = world.def_of(id)
+	var spd: int = 0
+	if o.kind[id] != OrderStore.NONE and o.kind[id] != OrderStore.FIRE_MISSION:
+		var dx: int = o.goal_x[id] - t.x[id]
+		var dy: int = o.goal_y[id] - t.y[id]
+		var d: int = FixedMath.length2(dx, dy)
+		if d <= def.max_speed:
+			t.x[id] = o.goal_x[id]
+			t.y[id] = o.goal_y[id]
+			_complete_order(world, id)
+		else:
+			var want: int = FixedMath.atan2_b(dy, dx)
+			var err: int = FixedMath.angle_diff(t.heading[id], want)
+			t.heading[id] = (t.heading[id] + clampi(err, -def.turn_rate, def.turn_rate)) & SimConst.ANGLE_MASK
+			spd = def.max_speed
+			t.x[id] = clampi(t.x[id] + spd * FixedMath.cos_b(t.heading[id]) / FixedMath.ONE, 0, world.map_width_mm() - 1)
+			t.y[id] = clampi(t.y[id] + spd * FixedMath.sin_b(t.heading[id]) / FixedMath.ONE, 0, world.map_height_mm() - 1)
+	t.z[id] = world.grid.ground_at(t.x[id], t.y[id]) + def.altitude_mm
+	world.mobility.speed[id] = spd

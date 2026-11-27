@@ -36,6 +36,13 @@ func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false) -> voi
 	var r: float = def.radius_mm * 0.001
 	if def.is_structure:
 		_build_structure()
+	elif def.is_air:
+		var body: MeshInstance3D = MeshInstance3D.new()
+		var bm: BoxMesh = BoxMesh.new()
+		bm.size = Vector3(4.0, 0.4, 1.0) if def.altitude_mm > 200000 else Vector3(1.6, 0.4, 1.6)
+		body.mesh = bm
+		body.material_override = _material
+		add_child(body)
 	elif def.is_infantry:
 		for m: int in range(def.members):
 			var fig: MeshInstance3D = MeshInstance3D.new()

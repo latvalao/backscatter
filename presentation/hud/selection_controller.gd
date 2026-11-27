@@ -142,6 +142,10 @@ func _key(k: InputEventKey) -> void:
 		KEY_X:
 			submit(SmokeCommand.new(selection))
 			message = "Smoke!"
+		KEY_Z:
+			var lvl: int = (runner.world.units.emcon[selection[0]] + 1) % 3
+			submit(EmconCommand.new(selection, lvl))
+			message = "EMCON " + UnitStore.EMCON_NAMES[lvl]
 		KEY_H:
 			var hold: bool = runner.world.units.stance[selection[0]] != UnitStore.STANCE_HOLD_FIRE
 			submit(StanceCommand.new(selection, UnitStore.STANCE_HOLD_FIRE if hold else UnitStore.STANCE_FIRE_AT_WILL))
@@ -243,7 +247,8 @@ func _right_click(pos: Vector2, shift: bool, alt: bool) -> void:
 		return
 	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
 	var m: int = MoveCommand.MODE_REVERSE if alt else MoveCommand.MODE_MOVE
-	submit(MoveCommand.new(selection, s.x, s.y, m, shift))
+	# Ctrl+right-click: "safe" route that avoids fallout (§8)
+	submit(MoveCommand.new(selection, s.x, s.y, m, shift, Input.is_key_pressed(KEY_CTRL)))
 
 
 ## Units in the selection that can build the structure being placed.

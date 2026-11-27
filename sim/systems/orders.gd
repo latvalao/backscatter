@@ -21,8 +21,8 @@ static func start(world: SimWorld, id: int, kind: int, flags: int, x: int, y: in
 	o.progress_tick[id] = world.tick
 	o.progress_dist[id] = FixedMath.length2(o.goal_x[id] - world.transform.x[id], o.goal_y[id] - world.transform.y[id])
 	world.mobility.blocked_ticks[id] = 0
-	if kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT \
-			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD:
+	if (kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT \
+			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD) and not world.def_of(id).is_air:
 		world.request_path(id)
 
 
