@@ -18,6 +18,9 @@ func _initialize() -> void:
 			_out = a.substr(6)
 		elif a.begins_with("--frames="):
 			_frames = a.substr(9).to_int()
+		elif a.begins_with("--quality="):
+			GraphicsSettings.load_settings()
+			GraphicsSettings.quality = a.substr(10).to_int()
 		elif a == "--reveal":
 			_reveal = true
 		elif a.begins_with("--zoom="):
