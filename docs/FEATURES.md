@@ -5,7 +5,7 @@ The UI overhaul comes last, after these features exist, because most of them nee
 
 ## Status
 
-Phases 1 to 7 are built. Phase 8, the UI overhaul, is next. Differences from the list below:
+Phases 1 to 8 are built, including the UI overhaul (screenshots: docs/ui_overhaul_*.png). Differences from the list below:
 
 - 2.6 Salvage happens where the wreck lies. The engineer drives to it and works for 20 seconds; there is no towing.
 - 3.4 Battlegroups are the light version: one of three per faction, picked in the menu.

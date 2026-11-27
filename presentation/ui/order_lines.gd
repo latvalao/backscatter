@@ -28,6 +28,7 @@ var _mesh: ImmediateMesh
 var _pings: Array[Dictionary] = []
 var _w: float = 2.0
 var _tris: int = 0
+var _director: ScenarioDirector
 
 
 func _ready() -> void:
@@ -66,6 +67,7 @@ func _process(delta: float) -> void:
 			continue
 		n += 1
 		_unit(w, id)
+	_objectives(w)
 	for i: int in range(_pings.size() - 1, -1, -1):
 		var pg: Dictionary = _pings[i]
 		pg["t"] = float(pg["t"]) - delta
@@ -82,6 +84,23 @@ func _process(delta: float) -> void:
 		_v(Vector3.ZERO, Color(0, 0, 0, 0))
 		_v(Vector3.ZERO, Color(0, 0, 0, 0))
 	_mesh.surface_end()
+
+
+## Mission objective markers: a pulsing amber ring with a diamond inside.
+func _objectives(w: SimWorld) -> void:
+	if _director == null:
+		for c: AiController in w.ai:
+			if c is ScenarioDirector:
+				_director = c as ScenarioDirector
+		if _director == null:
+			return
+	var mk: PackedInt64Array = _director.markers
+	var pulse: float = 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.004)
+	var col: Color = Color(UiStyle.AMBER.r, UiStyle.AMBER.g, UiStyle.AMBER.b, 0.55 + 0.35 * pulse)
+	for i: int in range(0, mk.size() - 1, 2):
+		var p: Vector3 = SimRunner.sim_to_view(mk[i], mk[i + 1], 0)
+		_ring(p, 40.0 + 6.0 * pulse, col, _w * 1.2)
+		_marker(p, col, false)
 
 
 func _unit(w: SimWorld, id: int) -> void:
