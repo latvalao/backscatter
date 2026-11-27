@@ -41,14 +41,24 @@ static func generate(seed_value: int, width: int, height: int, symmetric: bool =
 	# Village at the crossroads (centre, offset by noise).
 	var vx: int = width / 2 + (SimRng.hash3(seed_value, 11, 0) % 41) - 20
 	var vy: int = height / 2 + (SimRng.hash3(seed_value, 12, 0) % 41) - 20
+	# a street grid (every 5 cells) with built-up blocks; the edge thins out
+	# into gardens and fields
 	var village: PackedInt32Array = _noise_field(seed_value, 8, width, height, 6)
 	for cy: int in range(maxi(0, vy - 20), mini(height, vy + 21)):
 		for cx: int in range(maxi(0, vx - 20), mini(width, vx + 21)):
 			var dx: int = cx - vx
 			var dy: int = cy - vy
-			if dx * dx + dy * dy <= 20 * 20:
-				var i: int = g.index(cx, cy)
-				g.terrain[i] = TerrainTable.URBAN if village[i] > 470 else TerrainTable.FIELD
+			var r2: int = dx * dx + dy * dy
+			if r2 > 20 * 20:
+				continue
+			var i: int = g.index(cx, cy)
+			var street: bool = (dx + 40) % 5 == 0 or (dy + 40) % 5 == 0
+			if street and r2 <= 17 * 17:
+				g.terrain[i] = TerrainTable.ROAD
+			elif r2 <= 9 * 9 or (r2 <= 17 * 17 and village[i] > 330):
+				g.terrain[i] = TerrainTable.URBAN
+			else:
+				g.terrain[i] = TerrainTable.FIELD
 
 	_road(g, seed_value, 21, true, vy)
 	_road(g, seed_value, 22, false, vx)

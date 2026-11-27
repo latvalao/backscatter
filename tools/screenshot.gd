@@ -82,6 +82,13 @@ func _process(_delta: float) -> bool:
 			var dir: int = 1 if t.x[sel[0]] < runner.world.map_width_mm() / 2 else -1
 			ctl.submit(MoveCommand.new(sel, t.x[sel[0]] + dir * 450000, t.y[sel[0]] + 120000, MoveCommand.MODE_ATTACK_MOVE))
 			ctl.submit(MoveCommand.new(sel, t.x[sel[0]] + dir * 700000, t.y[sel[0]] - 100000, MoveCommand.MODE_MOVE, true))
+	if _frame == _frames - 14 and OS.get_cmdline_user_args().has("--barrage"):
+		var gs2: GameScene = _scene as GameScene
+		var c: Vector3 = gs2.cam.position
+		for k: int in range(14):
+			var bp: Vector3 = c + Vector3(sin(k * 2.4) * 30.0 * (1 + k % 3), 0, cos(k * 2.4) * 30.0 * (1 + k % 3))
+			bp.y = gs2.terrain_view().height_at(bp)
+			gs2.views.effects.explosion(bp, 7.0, true)
 	if _frame >= _frames:
 		var img: Image = root.get_viewport().get_texture().get_image()
 		img.save_png(_out)

@@ -55,6 +55,7 @@ func build(p_grid: SimGrid) -> void:
 			_build_chunk(cx, cy, cw, ch)
 			_build_water(cx, cy, cw, ch)
 			_build_foliage(cx, cy, cw, ch)
+	_build_settlement()
 	_build_mist()
 
 
@@ -214,7 +215,7 @@ func _build_chunk(cx0: int, cy0: int, cw: int, ch: int) -> void:
 							w.x += 1.0
 						TerrainTable.BOG, TerrainTable.WATER:
 							w.y += 1.0
-						TerrainTable.ROAD, TerrainTable.URBAN:
+						TerrainTable.ROAD:
 							w.z += 1.0
 						TerrainTable.ROCK:
 							w.w += 1.0
@@ -322,23 +323,6 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 				TerrainTable.ROCK:
 					if (h0 & 0xFF) < 90:
 						_place(props, customs, "rock_%d" % ((h0 >> 8) % 3), gx, gy, h0, cell_m, 0.8 + float((h0 >> 12) & 0xF) / 15.0 * 1.2)
-				TerrainTable.URBAN:
-					# about half the plots have a house; the rest are yards and gardens
-					if (h0 >> 4) % 9 < 4:
-						_place(props, customs, "house_%d" % ((h0 >> 8) & 1), gx, gy, h0, cell_m, 0.85, true)
-					elif (h0 >> 4) % 9 == 4:
-						_place(props, customs, "bales", gx, gy, h0, cell_m, 0.6)
-					elif (h0 >> 4) % 9 == 5:
-						_place(species, customs, "birch", gx, gy, h0, cell_m, 0.7)
-					# fence where the village plot meets open ground
-					for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-						var nx: int = gx + d.x
-						var ny: int = gy + d.y
-						if grid.in_grid(nx, ny) and grid.terrain[grid.index(nx, ny)] == TerrainTable.FIELD:
-							var fp: Vector3 = Vector3((gx + 0.5 + d.x * 0.48) * cell_m, 0.0, -(gy + 0.5 + d.y * 0.48) * cell_m)
-							fp.y = height_at(fp)
-							var yaw: float = PI * 0.5 if d.x != 0 else 0.0
-							_place_xf(props, customs, "fence", Transform3D(Basis(Vector3.UP, yaw), fp), h0 + d.x * 7 + d.y * 13)
 				TerrainTable.ROAD:
 					_road_props(props, customs, poles, gx, gy, h0, cell_m)
 	_wires(poles)
@@ -346,8 +330,9 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 	for name2: String in species.keys():
 		var xs: Array[Transform3D] = species[name2]
 		var cu: PackedColorArray = customs[name2]
-		_multimesh(ModelLibrary.mesh(name2), xs, cu, foliage_material, 0.0, lod + 60.0, true)
-		_multimesh(ModelLibrary.mesh(name2 + "_far"), xs, cu, foliage_material, lod, 0.0, false)
+		var near: MultiMesh = _multimesh(ModelLibrary.mesh(name2), xs, cu, foliage_material, 0.0, lod + 60.0, true)
+		var far: MultiMesh = _multimesh(ModelLibrary.mesh(name2 + "_far"), xs, cu, foliage_material, lod, 0.0, false)
+		_register("tree", [near, far], xs)
 	for name3: String in props.keys():
 		var xs2: Array[Transform3D] = props[name3]
 		var cu2: PackedColorArray = customs[name3]
@@ -483,9 +468,9 @@ func _place(into: Dictionary, customs: Dictionary, name: String, gx: int, gy: in
 	cl.append(Color(float(hk & 0x3FF) / 1023.0, float((hk >> 3) & 0xFF) / 255.0, float((hk >> 11) & 0xFF) / 255.0, 0.0))
 
 
-func _multimesh(mesh: Mesh, xforms: Array[Transform3D], custom: PackedColorArray, mat: Material, begin: float, end: float, shadows: bool) -> void:
+func _multimesh(mesh: Mesh, xforms: Array[Transform3D], custom: PackedColorArray, mat: Material, begin: float, end: float, shadows: bool) -> MultiMesh:
 	if xforms.is_empty() or mesh == null:
-		return
+		return null
 	var mm: MultiMesh = MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_custom_data = true
@@ -504,6 +489,7 @@ func _multimesh(mesh: Mesh, xforms: Array[Transform3D], custom: PackedColorArray
 	mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi)
+	return mm
 
 
 ## Low volumetric mist over bogs and lake shores (FogVolumes; High+ only).
@@ -565,3 +551,237 @@ func place_plant(p: Vector3) -> void:
 	lamp.omni_range = 40.0
 	lamp.position = mi.position + Vector3(10, 83, -8)
 	add_child(lamp)
+
+
+# ------------------------------------------------------------ settlements
+
+## Buildings by block: the street grid from MapGen leaves blocks of URBAN cells.
+## Central blocks get prefab panel buildings and the shop, one block the church,
+## the edge a water tower; the rest are houses facing the street with sheds,
+## gardens, fences and the odd garage row. Street lamps along village streets.
+func _build_settlement() -> void:
+	var cell_m: float = SimGrid.CELL_MM * 0.001
+	var seen: PackedByteArray = PackedByteArray()
+	seen.resize(grid.cell_count())
+	var blocks: Array[PackedInt32Array] = []
+	var cx: float = 0.0
+	var cy: float = 0.0
+	var n: int = 0
+	for i: int in range(grid.cell_count()):
+		if grid.terrain[i] != TerrainTable.URBAN or seen[i] == 1:
+			continue
+		var comp: PackedInt32Array = PackedInt32Array()
+		var stack: PackedInt32Array = PackedInt32Array([i])
+		seen[i] = 1
+		while not stack.is_empty():
+			var c: int = stack[stack.size() - 1]
+			stack.remove_at(stack.size() - 1)
+			comp.append(c)
+			cx += grid.cell_x(c)
+			cy += grid.cell_y(c)
+			n += 1
+			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var x: int = grid.cell_x(c) + d.x
+				var y: int = grid.cell_y(c) + d.y
+				if grid.in_grid(x, y):
+					var k: int = grid.index(x, y)
+					if seen[k] == 0 and grid.terrain[k] == TerrainTable.URBAN:
+						seen[k] = 1
+						stack.append(k)
+		blocks.append(comp)
+	if n == 0:
+		return
+	var centre: Vector2 = Vector2(cx / n, cy / n)
+	var props: Dictionary = {}
+	var customs: Dictionary = {}
+	var church_done: bool = false
+	var tower_done: bool = false
+	var far_block: int = 0
+	var far_d: float = 0.0
+	for bi: int in range(blocks.size()):
+		var b: PackedInt32Array = blocks[bi]
+		var r: Rect2i = _bounds(b)
+		var mid: Vector2 = Vector2(r.position) + Vector2(r.size) * 0.5
+		var dist: float = mid.distance_to(centre)
+		if dist > far_d and b.size() >= 4:
+			far_d = dist
+			far_block = bi
+		var world_mid: Vector3 = Vector3(mid.x * cell_m, 0.0, -mid.y * cell_m)
+		world_mid.y = height_at(world_mid)
+		var long_x: bool = r.size.x >= r.size.y
+		var basis: Basis = Basis(Vector3.UP, 0.0 if long_x else PI * 0.5)
+		var hk: int = SimRng.hash3(r.position.x, r.position.y, 91)
+		if dist < 7.0 and r.size.x >= 3 and r.size.y >= 3:
+			_place_xf(props, customs, "panel_block", Transform3D(basis.scaled(Vector3.ONE * clampf(maxf(r.size.x, r.size.y) * cell_m / 30.0, 0.8, 1.1)), world_mid), hk)
+			continue
+		if dist < 7.0:
+			_place_xf(props, customs, "shop", Transform3D(basis, world_mid), hk)
+			continue
+		if not church_done and dist < 12.0 and b.size() >= 6:
+			church_done = true
+			_place_xf(props, customs, "church", Transform3D(Basis(Vector3.UP, PI * 0.5 * (hk & 3)), world_mid), hk)
+			continue
+		_houses(b, props, customs, cell_m, hk)
+	if not tower_done and not blocks.is_empty():
+		var tb: Rect2i = _bounds(blocks[far_block])
+		var tp: Vector3 = Vector3((tb.position.x + 0.5) * cell_m, 0.0, -(tb.position.y + 0.5) * cell_m)
+		tp.y = height_at(tp)
+		_place_xf(props, customs, "water_tower", Transform3D(Basis.IDENTITY, tp), 7)
+	# street lamps along village streets
+	for i2: int in range(grid.cell_count()):
+		if grid.terrain[i2] != TerrainTable.ROAD:
+			continue
+		var x2: int = grid.cell_x(i2)
+		var y2: int = grid.cell_y(i2)
+		if (x2 + y2 * 2) % 4 != 0 or Vector2(x2, y2).distance_to(centre) > 18.0:
+			continue
+		var lp: Vector3 = Vector3((x2 + 0.15) * cell_m, 0.0, -(y2 + 0.15) * cell_m)
+		lp.y = height_at(lp)
+		_place_xf(props, customs, "lamp", Transform3D(Basis(Vector3.UP, float(x2 % 4) * PI * 0.5), lp), i2)
+	var mat: Material = ModelLibrary.material(4, 3)
+	for name: String in props.keys():
+		var xs: Array[Transform3D] = props[name]
+		var tree: bool = name == "birch" or name == "aspen"
+		var mm: MultiMesh = _multimesh(ModelLibrary.mesh(name), xs, customs[name], foliage_material if tree else mat, 0.0, 3000.0 if name != "lamp" and name != "fence" and name != "shed" else 900.0, true)
+		if name.begins_with("house") or name == "shed":
+			_register("house", [mm], xs)
+		elif tree:
+			_register("tree", [mm], xs)
+
+
+func _bounds(cells: PackedInt32Array) -> Rect2i:
+	var x0: int = 1 << 30
+	var y0: int = 1 << 30
+	var x1: int = -1
+	var y1: int = -1
+	for c: int in cells:
+		x0 = mini(x0, grid.cell_x(c))
+		y0 = mini(y0, grid.cell_y(c))
+		x1 = maxi(x1, grid.cell_x(c))
+		y1 = maxi(y1, grid.cell_y(c))
+	return Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+
+
+## Houses on block cells next to a street, facing it; sheds and gardens behind,
+## fences where the block meets fields.
+func _houses(b: PackedInt32Array, props: Dictionary, customs: Dictionary, cell_m: float, hk: int) -> void:
+	var placed: int = 0
+	for c: int in b:
+		var x: int = grid.cell_x(c)
+		var y: int = grid.cell_y(c)
+		var h: int = SimRng.hash3(x, y, 93)
+		var street: Vector2i = Vector2i.ZERO
+		for d: Vector2i in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0)]:
+			if grid.in_grid(x + d.x, y + d.y) and grid.terrain[grid.index(x + d.x, y + d.y)] == TerrainTable.ROAD:
+				street = d
+				break
+		var p: Vector3 = Vector3((x + 0.5) * cell_m, 0.0, -(y + 0.5) * cell_m)
+		p.y = height_at(p)
+		if street != Vector2i.ZERO and (x * 3 + y * 5) % 3 == 0 and h % 5 != 0:
+			# front (-Z of the model) faces the street, set back behind a front garden
+			var yaw: float = atan2(float(street.x), float(street.y)) + (float(h & 7) - 3.5) * 0.03
+			var sc: float = 0.72 + float((h >> 4) & 7) * 0.025
+			_place_xf(props, customs, "house_%d" % (h & 1), Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), p - Vector3(street.x, 0, -street.y) * cell_m * 0.12), h)
+			placed += 1
+		elif street == Vector2i.ZERO and h % 3 == 0:
+			_place(props, customs, "birch" if h % 2 == 0 else "aspen", x, y, h, cell_m, 0.55)
+		elif street == Vector2i.ZERO and h % 5 == 0:
+			_place_xf(props, customs, "shed", Transform3D(Basis(Vector3.UP, float(h & 3) * PI * 0.5), p), h)
+		elif street == Vector2i.ZERO and h % 7 == 1:
+			_place_xf(props, customs, "garages", Transform3D(Basis(Vector3.UP, float(h & 1) * PI * 0.5).scaled(Vector3.ONE * 0.55), p), h)
+		for d2: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nx: int = x + d2.x
+			var ny: int = y + d2.y
+			if grid.in_grid(nx, ny) and grid.terrain[grid.index(nx, ny)] == TerrainTable.FIELD:
+				var fp: Vector3 = Vector3((x + 0.5 + d2.x * 0.48) * cell_m, 0.0, -(y + 0.5 + d2.y * 0.48) * cell_m)
+				fp.y = height_at(fp)
+				_place_xf(props, customs, "fence", Transform3D(Basis(Vector3.UP, PI * 0.5 if d2.x != 0 else 0.0), fp), h + d2.x * 7)
+
+
+# ------------------------------------------------------------ battle damage
+
+var _damageable: Array[Dictionary] = []   # {kind, mms: Array[MultiMesh], xforms, alive: PackedByteArray}
+var _debris: Dictionary = {}              # mesh name -> {mm: MultiMesh, xforms: Array[Transform3D]}
+var _burning: int = 0
+
+
+func _register(kind: String, mms: Array, xforms: Array[Transform3D]) -> void:
+	var list: Array[MultiMesh] = []
+	for m: Variant in mms:
+		if m != null:
+			list.append(m as MultiMesh)
+	if list.is_empty():
+		return
+	var alive: PackedByteArray = PackedByteArray()
+	alive.resize(xforms.size())
+	alive.fill(1)
+	var lo: Vector3 = Vector3.INF
+	var hi: Vector3 = -Vector3.INF
+	for xf: Transform3D in xforms:
+		lo = lo.min(xf.origin)
+		hi = hi.max(xf.origin)
+	_damageable.append({"kind": kind, "mms": list, "xforms": xforms, "alive": alive, "lo": lo, "hi": hi})
+
+
+## A blast of radius r at p: trees inside fall (stumps and fallen trunks stay),
+## houses become ruins, a crater rim is left, and woods or fields may burn.
+func damage(p: Vector3, r: float, fx: Effects) -> void:
+	var r2: float = r * r
+	var felled: int = 0
+	for set: Dictionary in _damageable:
+		var lo: Vector3 = set["lo"]
+		var hi: Vector3 = set["hi"]
+		if p.x < lo.x - r or p.x > hi.x + r or p.z < lo.z - r or p.z > hi.z + r:
+			continue
+		var xs: Array[Transform3D] = set["xforms"]
+		var alive: PackedByteArray = set["alive"]
+		var kind: String = set["kind"]
+		for i: int in range(xs.size()):
+			if alive[i] == 0:
+				continue
+			var o: Vector3 = xs[i].origin
+			var d2: float = (o.x - p.x) * (o.x - p.x) + (o.z - p.z) * (o.z - p.z)
+			if d2 > r2 * (0.6 if kind == "house" else 1.0):
+				continue
+			alive[i] = 0
+			for mm: MultiMesh in set["mms"]:
+				mm.set_instance_transform(i, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * 0.0001), o))
+			if kind == "tree":
+				felled += 1
+				var away: float = atan2(o.x - p.x, o.z - p.z)
+				_add_debris("fallen_tree" if (i % 3) != 0 else "stump", Transform3D(Basis(Vector3.UP, away + PI).scaled(Vector3.ONE * 0.8), o))
+			else:
+				_add_debris("house_ruin", Transform3D(xs[i].basis, o))
+				if fx != null:
+					fx.burn_at(o, false)
+	if r >= 5.0:
+		var cp: Vector3 = Vector3(p.x, height_at(p), p.z)
+		_add_debris("crater", Transform3D(Basis(Vector3.UP, fposmod(p.x * 0.37, TAU)).scaled(Vector3(r / 5.0, 1.0, r / 5.0)), cp))
+	if fx != null and _burning < 40 and (felled >= 2 or (r >= 9.0 and terrain_at(p) == TerrainTable.FIELD and fposmod(p.x + p.z, 3.0) < 1.0)):
+		_burning += 1
+		fx.burn_at(Vector3(p.x, height_at(p), p.z), felled >= 4)
+
+
+func _add_debris(name: String, xf: Transform3D) -> void:
+	if not _debris.has(name):
+		var mesh: Mesh = ModelLibrary.mesh(name)
+		if mesh == null:
+			return
+		var mm: MultiMesh = MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.mesh = mesh
+		var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = foliage_material if name == "fallen_tree" else ModelLibrary.material(4, 3)
+		add_child(mmi)
+		var empty: Array[Transform3D] = []
+		_debris[name] = {"mm": mm, "xforms": empty}
+	var e: Dictionary = _debris[name]
+	var xs: Array[Transform3D] = e["xforms"]
+	xs.append(xf)
+	var mm2: MultiMesh = e["mm"]
+	mm2.instance_count = xs.size()
+	for i: int in range(xs.size()):
+		mm2.set_instance_transform(i, xs[i])
+		mm2.set_instance_custom_data(i, Color(float(i % 7) / 7.0, 0.5, 0.5, 0.0))

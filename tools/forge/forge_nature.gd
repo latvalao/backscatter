@@ -191,6 +191,115 @@ static func barn() -> ForgeMesh:
 	return m
 
 
+## Five-storey prefab panel block (khrushchyovka), 28 x 11 m.
+static func panel_block() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	var w: float = 28.0
+	var d: float = 11.0
+	var h: float = 15.0
+	m.box(Vector3(0, -0.6, 0), Vector3(w, h + 0.6, d), ForgeModels.N_CONCRETE, 0.1)
+	m.box(Vector3(0, h, 0), Vector3(w + 0.3, 0.5, d + 0.3), ForgeModels.PLASTER, 0.05)
+	for sx: float in [-w * 0.3, w * 0.3]:
+		m.box(Vector3(sx, h + 0.5, 0), Vector3(3.0, 2.2, 3.0), ForgeModels.N_CONCRETE, 0.05)
+	for f: int in range(5):
+		var y: float = 0.9 + f * 2.9
+		m.box(Vector3(0, y - 0.95, -d * 0.5 - 0.02), Vector3(w, 0.06, 0.06), ForgeModels.PLASTER, 0.0)
+		m.box(Vector3(0, y - 0.95, d * 0.5 + 0.02), Vector3(w, 0.06, 0.06), ForgeModels.PLASTER, 0.0)
+		for i: int in range(8):
+			var x: float = -w * 0.5 + 2.0 + i * (w - 4.0) / 7.0
+			m.box(Vector3(x, y, -d * 0.5 - 0.04), Vector3(1.4, 1.4, 0.08), ForgeModels.WINDOW, 0.0)
+			m.box(Vector3(x, y, d * 0.5 + 0.04), Vector3(1.4, 1.4, 0.08), ForgeModels.WINDOW, 0.0)
+			if f > 0 and i % 3 == 1:
+				m.box(Vector3(x, y - 0.95, d * 0.5 + 0.6), Vector3(2.6, 1.0, 1.1), ForgeModels.N_RUST if (i + f) % 2 == 0 else ForgeModels.PLASTER, 0.04)
+	for e: float in [-w * 0.3, w * 0.3]:
+		m.box(Vector3(e, -0.2, -d * 0.5 - 0.8), Vector3(2.4, 0.3, 1.6), ForgeModels.N_CONCRETE, 0.04)
+		m.box(Vector3(e, 2.6, -d * 0.5 - 0.8), Vector3(2.6, 0.15, 1.8), ForgeModels.N_CONCRETE, 0.02)
+	return m
+
+
+## Village shop: one storey of plastered brick, big windows, a sign board.
+static func shop() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.5, 0), Vector3(13.0, 4.6, 9.0), ForgeModels.PLASTER, 0.08)
+	m.box(Vector3(0, 4.1, 0), Vector3(13.4, 0.35, 9.4), ForgeModels.N_CONCRETE, 0.04)
+	for x: float in [-4.0, 0.0, 4.0]:
+		m.box(Vector3(x, 0.8, -4.54), Vector3(3.0, 2.0, 0.08), ForgeModels.WINDOW, 0.0)
+	m.box(Vector3(0, 3.0, -4.6), Vector3(9.0, 0.9, 0.12), ForgeModels.BIRCH_LEAF, 0.02)
+	m.box(Vector3(5.6, -0.1, -4.6), Vector3(1.3, 2.4, 0.1), ForgeModels.PLANK, 0.01)
+	return m
+
+
+## Wooden church with a shingled onion dome: the village landmark.
+static func church() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.5, 1.5), Vector3(8.0, 6.5, 12.0), ForgeModels.PLANK, 0.08)
+	m.box(Vector3(0, 6.0, 1.5), Vector3(8.6, 3.0, 12.6), ForgeModels.N_RUST, 0.0, Vector2(0.02, 1.0))
+	var rings: Array[PackedVector3Array] = [ForgeMesh.octagon(2.6, 2.6, 0.9, 0.0, 0.0, -3.5), ForgeMesh.octagon(2.6, 2.6, 0.9, 14.0, 0.0, -3.5),
+		ForgeMesh.octagon(2.0, 2.0, 0.7, 15.5, 0.0, -3.5)]
+	m.loft(rings, ForgeModels.PLANK, PackedInt32Array([1]), true)
+	m.blob(Vector3(0, 17.4, -3.5), Vector3(2.2, 2.6, 2.2), 10, 6, ForgeModels.BARK, false)
+	m.cyl(Vector3(0, 19.6, -3.5), Vector3(0, 22.0, -3.5), 0.12, 0.1, 4, ForgeModels.BIRCH_LEAF)
+	m.box(Vector3(0, 21.0, -3.5), Vector3(1.4, 0.12, 0.12), ForgeModels.BIRCH_LEAF, 0.0)
+	return m
+
+
+## A row of four lock-up garages with rusty doors.
+static func garages() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.4, 0), Vector3(14.5, 3.0, 6.0), ForgeModels.N_CONCRETE, 0.05)
+	m.box(Vector3(0, 2.5, 0), Vector3(14.9, 0.2, 6.4), ForgeModels.N_RUST, 0.02, Vector2(1.0, 0.9))
+	for i: int in range(4):
+		m.box(Vector3(-5.4 + i * 3.6, -0.1, -3.03), Vector3(2.9, 2.3, 0.08), ForgeModels.N_RUST if i % 2 == 0 else ForgeModels.BARK, 0.01)
+	return m
+
+
+## Garden shed with a lean-to roof.
+static func shed() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.3, 0), Vector3(3.4, 2.5, 2.6), ForgeModels.PLANK, 0.05)
+	m.box(Vector3(0, 2.2, 0), Vector3(3.8, 0.6, 3.0), ForgeModels.N_RUST, 0.0, Vector2(1.0, 0.95), Vector2(0, 0.2))
+	return m
+
+
+## Brick water tower: a landmark you can see across the valley.
+static func water_tower() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.cyl(Vector3(0, -0.5, 0), Vector3(0, 16.0, 0), 2.6, 2.2, 10, ForgeModels.ROOF, true)
+	m.cyl(Vector3(0, 16.0, 0), Vector3(0, 20.0, 0), 4.0, 4.0, 12, ForgeModels.N_CONCRETE, true)
+	m.cyl(Vector3(0, 20.0, 0), Vector3(0, 22.0, 0), 4.2, 0.4, 12, ForgeModels.N_RUST)
+	return m
+
+
+## Concrete street lamp with a bent arm.
+static func lamp() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.cyl(Vector3(0, -0.3, 0), Vector3(0, 7.0, 0), 0.14, 0.09, 5, ForgeModels.N_CONCRETE)
+	m.cyl(Vector3(0, 6.9, 0), Vector3(1.4, 7.3, 0), 0.06, 0.05, 4, ForgeModels.N_CONCRETE)
+	m.box(Vector3(1.5, 7.0, 0), Vector3(0.7, 0.25, 0.35), ForgeModels.N_RUST, 0.03)
+	return m
+
+
+## A shelled house: broken walls, no roof, a heap of rubble.
+static func house_ruin() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.5, 0), Vector3(7.2, 0.9, 6.2), ForgeModels.N_CONCRETE, 0.04)
+	m.box(Vector3(-3.3, 0.4, 0), Vector3(0.4, 2.4, 6.0), ForgeModels.BARK, 0.04, Vector2(1.0, 0.6), Vector2(0, 0.8))
+	m.box(Vector3(0.5, 0.4, -2.8), Vector3(5.5, 1.6, 0.4), ForgeModels.BARK, 0.04, Vector2(0.7, 1.0), Vector2(-0.6, 0))
+	m.box(Vector3(2.0, 0.4, 0.8), Vector3(0.6, 4.2, 0.6), ForgeModels.N_CONCRETE, 0.04)
+	m.blob(Vector3(0.6, 0.3, 0.8), Vector3(2.6, 1.1, 2.0), 7, 4, ForgeModels.N_CONCRETE, false, false, 0.3, 61)
+	m.blob(Vector3(-0.8, 0.3, 1.5), Vector3(1.8, 0.8, 1.4), 6, 3, ForgeModels.BARK, false, false, 0.3, 62)
+	return m
+
+
+## Shell crater: a low ring of thrown earth around a dark hollow.
+static func crater() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	for i: int in range(8):
+		var a: float = TAU * i / 8.0
+		m.blob(Vector3(cos(a) * 2.4, 0.0, sin(a) * 2.4), Vector3(1.3, 0.45, 1.0), 6, 3, ForgeModels.BARK, true, true, 0.3, 70 + i)
+	return m
+
+
 ## Ruined Soviet-era border post (beauty corner).
 static func border_post() -> ForgeMesh:
 	var m: ForgeMesh = mesh()

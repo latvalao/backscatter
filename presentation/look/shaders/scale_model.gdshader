@@ -23,6 +23,7 @@ instance uniform float contamination = 0.0;
 instance uniform float build_alpha = 1.0;
 
 varying vec3 obj_pos;
+varying vec4 inst;
 varying vec3 world_pos;
 varying vec3 world_normal;
 
@@ -48,6 +49,7 @@ vec3 swatch(int col, float row_v) {
 
 void vertex() {
 	obj_pos = VERTEX;
+	inst = INSTANCE_CUSTOM;
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
@@ -70,6 +72,19 @@ void fragment() {
 		} else {
 			float n3 = vnoise(obj_pos * 0.6 + 4.0);
 			albedo = mix(albedo, swatch(2, row_v), smoothstep(0.55, 0.6, n3));
+		}
+	}
+	if (palette_row == 4) {
+		// village variety: roofs in rust red, slate grey or painted green tin;
+		// walls a shade lighter or darker per building
+		if (col == 10) {
+			float r = inst.x;
+			albedo = r < 0.4 ? albedo : (r < 0.72 ? vec3(0.32, 0.33, 0.34) : vec3(0.27, 0.36, 0.3));
+		} else if (col == 11 || col == 12) {
+			albedo *= 0.85 + inst.y * 0.3;
+			if (col == 11 && inst.z > 0.6) {
+				albedo = mix(albedo, vec3(0.62, 0.56, 0.38), 0.45);
+			}
 		}
 	}
 	float ao = COLOR.r;

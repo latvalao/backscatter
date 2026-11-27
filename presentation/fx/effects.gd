@@ -327,6 +327,8 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 	_dust(p + Vector3.UP * size_m * 0.4, size_m * 1.3, Color(0.28, 0.27, 0.25), int(clampf(size_m * 5.0, 6, 28)))
 	if crater and terrain != null and size_m >= 1.5:
 		terrain.stamp_crater(p, size_m * 0.9, 0.45)
+	if terrain != null and size_m >= 3.0:
+		terrain.damage(p, size_m * 1.3, self)
 
 
 func _dust(p: Vector3, size_m: float, col: Color, n: int) -> void:
@@ -357,6 +359,14 @@ func flare(p: Vector3, life_s: float) -> void:
 	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(s)
 	_flares.append({"light": l, "sprite": s, "t": life_s, "life": life_s, "p": p})
+
+
+## A patch of burning ground or a burning house: fire, then smoke that lingers.
+func burn_at(p: Vector3, large: bool) -> void:
+	var anchor: Node3D = Node3D.new()
+	anchor.position = p
+	add_child(anchor)
+	attach_wreck_fire(anchor, large)
 
 
 ## Burning wreck: fire + light for FIRE_TIME seconds, then a thin smoke column forever.
