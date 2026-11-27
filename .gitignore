@@ -1,0 +1,12 @@
+# Godot
+.godot/
+/android/
+*.translation
+export_presets.cfg
+export_credentials.cfg
+
+# Builds & local
+/build/
+*.tmp
+.DS_Store
+user_data/
