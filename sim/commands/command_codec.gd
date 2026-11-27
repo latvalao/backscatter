@@ -40,6 +40,10 @@ static func create(type: String) -> SimCommand:
 			return UnloadCommand.new()
 		"engage_range":
 			return EngageRangeCommand.new()
+		"flare":
+			return FlareCommand.new()
+		"engineer_task":
+			return EngineerTaskCommand.new()
 	return null
 
 

@@ -62,6 +62,8 @@ func _scan(world: SimWorld, obs: int, team: int, tick: int) -> void:
 	var layer: TeamVision = world.vision[team]
 	var ranges: Vector2i = observer_ranges(world, obs)
 	var reach: int = maxi(ranges.x, ranges.y) * MAX_FACTOR / 1000
+	if world.flares.count() > 0:
+		reach = maxi(reach, world.def_of(obs).vision_day_mm * MAX_FACTOR / 1000)
 	var t: TransformStore = world.transform
 	var ox: int = t.x[obs]
 	var oy: int = t.y[obs]
@@ -83,6 +85,9 @@ func _consider(world: SimWorld, obs: int, tgt: int, ox: int, oy: int, reach: int
 	var d2: int = dx * dx + dy * dy
 	var f: int = target_factor(world, tgt, tick)
 	var opt: int = ranges.x * f / 1000
+	if world.flares.count() > 0 and (world.is_night or world.weather.night) and lit(world, t.x[tgt], t.y[tgt]):
+		# under a flare: day optics apply
+		opt = maxi(opt, world.def_of(obs).vision_day_mm * f / 1000)
 	var thr: int = ranges.y * f / 1000
 	var need: int = maxi(opt, thr)
 	if d2 > need * need:
@@ -95,6 +100,8 @@ func _consider(world: SimWorld, obs: int, tgt: int, ox: int, oy: int, reach: int
 		if d2 > (thr / 2) * (thr / 2):
 			return
 	if world.is_on_net(obs) or world.is_structure(obs) or _near_net(world, obs):
+		if not layer.is_visible(tgt, tick):
+			Veterancy.award(world, obs, Veterancy.XP_SPOT)
 		layer.mark_seen(tgt, t.x[tgt], t.y[tgt], tick, until)
 	elif not layer.is_visible(tgt, tick):
 		# off the radio net: the report reaches the team late (courier delay)
@@ -104,6 +111,16 @@ func _consider(world: SimWorld, obs: int, tgt: int, ox: int, oy: int, reach: int
 
 
 const COURIER_RANGE_MM: int = 300000
+
+
+static func lit(world: SimWorld, x: int, y: int) -> bool:
+	var fl: SmokeStore = world.flares
+	for i: int in range(fl.count()):
+		var dx: int = x - fl.x[i]
+		var dy: int = y - fl.y[i]
+		if dx * dx + dy * dy <= fl.radius[i] * fl.radius[i]:
+			return true
+	return false
 
 
 ## An off-net observer close to an on-net friendly can pass reports by voice.

@@ -24,10 +24,11 @@ func issue(world: SimWorld, cmd: SimCommand) -> bool:
 	return true
 
 
-## This player's live units (not structures), ascending.
+## This player's live units (not structures, not bailed-out crews heading
+## home), ascending.
 func my_units(world: SimWorld) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
 	for id: int in world.team_units[world.team_of_player(player)]:
-		if world.units.owner[id] == player and not world.is_structure(id):
+		if world.units.owner[id] == player and not world.is_structure(id) and world.def_of(id).role != "crew":
 			out.append(id)
 	return out

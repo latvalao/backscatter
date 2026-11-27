@@ -27,6 +27,9 @@ var _flash_mat: StandardMaterial3D
 var _smoke_screen_mat: ParticleProcessMaterial
 var _column_mat: ParticleProcessMaterial
 var _wind_timer: float = 0.0
+var _flares: Array[Dictionary] = []  # {light, sprite, t, life, p}
+var _mine_mesh: ImmediateMesh
+var _mine_timer: float = 0.0
 var _observed: Dictionary = {}  # projectile key -> impact point observed by the local team
 
 
@@ -68,6 +71,15 @@ func _ready() -> void:
 		add_child(l)
 		_lights.append(l)
 		_light_t.append(0.0)
+	_mine_mesh = ImmediateMesh.new()
+	var mm: MeshInstance3D = MeshInstance3D.new()
+	mm.mesh = _mine_mesh
+	mm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mmat: StandardMaterial3D = StandardMaterial3D.new()
+	mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mmat.vertex_color_use_as_albedo = true
+	mm.material_override = mmat
+	add_child(mm)
 	_smoke_screen_mat = _smoke_process(Vector3(0, 0.25, 0), 0.6, 1.6, Color(0.82, 0.82, 0.8))
 	_column_mat = _smoke_process(Vector3(0, 1.6, 0), 0.4, 1.2, Color(0.2, 0.19, 0.18))
 
@@ -194,6 +206,25 @@ func _dust(p: Vector3, size_m: float, col: Color, n: int) -> void:
 	_transients.append({"node": d, "t": 5.0, "kind": "free", "size": 0.0})
 
 
+## Parachute illumination flare: a bright light drifting down for `life_s`.
+func flare(p: Vector3, life_s: float) -> void:
+	var l: OmniLight3D = OmniLight3D.new()
+	l.light_color = Color(1.0, 0.93, 0.8)
+	l.light_energy = 6.0
+	l.omni_range = 420.0
+	l.omni_attenuation = 0.6
+	l.shadow_enabled = _flares.size() < 2
+	add_child(l)
+	var s: MeshInstance3D = MeshInstance3D.new()
+	var q: QuadMesh = QuadMesh.new()
+	q.size = Vector2(6, 6)
+	s.mesh = q
+	s.material_override = _flash_mat
+	s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(s)
+	_flares.append({"light": l, "sprite": s, "t": life_s, "life": life_s, "p": p})
+
+
 ## Burning wreck: fire + light for FIRE_TIME seconds, then a thin smoke column forever.
 func attach_wreck_fire(v: Node3D, large: bool) -> void:
 	var fire_pm: ParticleProcessMaterial = ParticleProcessMaterial.new()
@@ -293,6 +324,28 @@ func _process(delta: float) -> void:
 			_wreck_fx.remove_at(j)
 		elif lt != null:
 			lt.light_energy = 2.4 + sin(Time.get_ticks_msec() * 0.023 + j) * 0.6 + randf() * 0.4
+	for fi: int in range(_flares.size() - 1, -1, -1):
+		var fl: Dictionary = _flares[fi]
+		var left: float = float(fl["t"]) - delta
+		fl["t"] = left
+		var lnode: OmniLight3D = fl["light"]
+		var snode: MeshInstance3D = fl["sprite"]
+		if left <= 0.0:
+			lnode.queue_free()
+			snode.queue_free()
+			_flares.remove_at(fi)
+			continue
+		var k: float = 1.0 - left / float(fl["life"])
+		var fp: Vector3 = fl["p"]
+		fp += Vector3(LookDirector.wind.x * k * 20.0, 0.0, LookDirector.wind.y * k * 20.0)
+		fp.y = (terrain.height_at(fp) if terrain != null else 0.0) + lerpf(260.0, 40.0, k)
+		lnode.position = fp
+		snode.position = fp
+		lnode.light_energy = 6.0 * clampf(left / 4.0, 0.0, 1.0) * (0.92 + randf() * 0.08)
+	_mine_timer -= delta
+	if _mine_timer <= 0.0:
+		_mine_timer = 0.5
+		_draw_mines(w)
 	_wind_timer -= delta
 	if _wind_timer <= 0.0:
 		_wind_timer = 1.0
@@ -300,6 +353,31 @@ func _process(delta: float) -> void:
 		_column_mat.gravity = Vector3(wind.x * 0.35, 1.6, wind.y * 0.35)
 		_smoke_screen_mat.gravity = Vector3(wind.x * 0.2, 0.25, wind.y * 0.2)
 	_sync_smoke(w)
+
+
+## Known minefields: own mines amber, discovered enemy mines red.
+func _draw_mines(w: SimWorld) -> void:
+	_mine_mesh.clear_surfaces()
+	var m: MineStore = w.mines
+	if m.count() == 0 or terrain == null:
+		return
+	var shown: PackedInt32Array = PackedInt32Array()
+	for k: int in range(m.count()):
+		if m.is_known(k, local_team):
+			shown.append(k)
+	if shown.is_empty():
+		return
+	_mine_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+	for i: int in shown:
+		var c: Color = Color(0.95, 0.75, 0.3) if m.team[i] == local_team else Color(1.0, 0.3, 0.25)
+		var p: Vector3 = SimRunner.sim_to_view(m.x[i], m.y[i], 0)
+		p.y = terrain.height_at(p) + 0.4
+		for d: Vector3 in [Vector3(1.6, 0, 1.6), Vector3(1.6, 0, -1.6)]:
+			_mine_mesh.surface_set_color(c)
+			_mine_mesh.surface_add_vertex(p - d)
+			_mine_mesh.surface_set_color(c)
+			_mine_mesh.surface_add_vertex(p + d)
+	_mine_mesh.surface_end()
 
 
 func _draw_projectiles(w: SimWorld) -> void:

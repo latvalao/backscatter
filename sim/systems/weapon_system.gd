@@ -102,6 +102,8 @@ func _acquire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, team: in
 		forced = o.target[id]
 	if world.units.stance[id] == UnitStore.STANCE_HOLD_FIRE and forced == 0:
 		return 0
+	if world.units.rout_until[id] > tick:
+		return 0
 	var scored: PackedInt64Array = PackedInt64Array()
 	for tgt: int in world.visible_enemies[team]:
 		if not world.is_unit(tgt):
@@ -173,7 +175,7 @@ func _fire(world: SimWorld, id: int, def: UnitStats, slot: int, w: WeaponStats, 
 	var k: int = id * WeaponStore.MAX_WEAPONS + slot
 	var t: TransformStore = world.transform
 	ws.ammo[k] -= w.ammo_per_shot
-	ws.reload[k] = w.reload_ticks
+	ws.reload[k] = Veterancy.reload_ticks(world, id, w.reload_ticks)
 	world.units.last_fired_tick[id] = tick
 	var d: int = _dist(world, id, tgt)
 	var acc: int = Combat.hit_chance(world, id, tgt, w, d)

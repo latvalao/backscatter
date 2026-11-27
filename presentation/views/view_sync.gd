@@ -106,6 +106,20 @@ func _update_ghost(w: SimWorld, id: int, v: UnitView, vis: bool, own: bool, laye
 			g2.position = p
 
 
+## Wreck under a screen point (its old entity id), 0 if none.
+func pick_wreck(pos: Vector2, cam: Camera3D) -> int:
+	var best: int = 0
+	var best_d: float = 28.0
+	for v: UnitView in _wrecks:
+		if not is_instance_valid(v) or cam.is_position_behind(v.global_position):
+			continue
+		var d: float = cam.unproject_position(v.global_position + Vector3.UP).distance_to(pos)
+		if d < best_d and runner.world.wrecks.find(v.entity_id) >= 0:
+			best_d = d
+			best = v.entity_id
+	return best
+
+
 func view_of(id: int) -> UnitView:
 	return _views.get(id, null)
 
@@ -146,6 +160,17 @@ func _on_event(w: SimWorld, e: SimEvent) -> void:
 				return  # drawn as an in-flight projectile
 			var b: Vector3 = runner.interpolated_position(e.other_id) + Vector3.UP if e.other_id > 0 else SimRunner.sim_to_view(e.x, e.y, 0)
 			effects.tracer(muzzle, b, wdef.penetration > 50, team_col)
+		SimEvent.Type.SALVAGED:
+			for i: int in range(_wrecks.size() - 1, -1, -1):
+				if is_instance_valid(_wrecks[i]) and _wrecks[i].entity_id == e.entity_id:
+					_wrecks[i].queue_free()
+					_wrecks.remove_at(i)
+		SimEvent.Type.MINE:
+			var mp: Vector3 = SimRunner.sim_to_view(e.x, e.y, 0)
+			mp.y = effects.terrain.height_at(mp)
+			effects.explosion(mp, 2.5, true)
+		SimEvent.Type.FLARE:
+			effects.flare(SimRunner.sim_to_view(e.x, e.y, 0), FlareCommand.FLARE_TICKS * SimConst.TICK_MS * 0.001)
 		SimEvent.Type.IMPACT, SimEvent.Type.MISSED:
 			var wd: WeaponStats = w.defs.weapons[e.value]
 			var p2: Vector3 = SimRunner.sim_to_view(e.x, e.y, 0)

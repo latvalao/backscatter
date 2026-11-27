@@ -49,6 +49,9 @@ static func compute(world: SimWorld) -> int:
 	world.radfield.hash_into(h)
 	h.add_int(world.winner_team)
 	world.smoke.hash_into(h)
+	world.flares.hash_into(h)
+	world.wrecks.hash_into(h)
+	world.mines.hash_into(h)
 	h.add_int(world.path_requests.size())
 	for pid: int in world.path_requests:
 		h.add_int(pid)

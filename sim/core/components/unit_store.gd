@@ -47,6 +47,19 @@ var engage_range: PackedInt32Array = PackedInt32Array()
 ## Experience points and veterancy rank (0 Trained, 1 Veteran, 2 Elite).
 var xp: PackedInt32Array = PackedInt32Array()
 var rank: PackedInt32Array = PackedInt32Array()
+## Morale broke: retreats and ignores orders until this tick.
+var rout_until: PackedInt32Array = PackedInt32Array()
+## Ticks spent stationary (infantry dig in / garrison after a while).
+var still_ticks: PackedInt32Array = PackedInt32Array()
+## Engineer task (TASK_*) and its argument (wreck entity id / packed point).
+var task: PackedInt32Array = PackedInt32Array()
+var task_x: PackedInt64Array = PackedInt64Array()
+var task_y: PackedInt64Array = PackedInt64Array()
+var task_arg: PackedInt32Array = PackedInt32Array()
+
+const TASK_NONE: int = 0
+const TASK_SALVAGE: int = 1
+const TASK_LAY_MINES: int = 2
 
 
 func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
@@ -74,6 +87,12 @@ func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
 	engage_range[id] = 0
 	xp[id] = 0
 	rank[id] = 0
+	rout_until[id] = 0
+	still_ticks[id] = 0
+	task[id] = 0
+	task_x[id] = 0
+	task_y[id] = 0
+	task_arg[id] = 0
 
 
 func _resize_columns(n: int) -> void:
@@ -99,14 +118,22 @@ func _resize_columns(n: int) -> void:
 	engage_range.resize(n)
 	xp.resize(n)
 	rank.resize(n)
+	rout_until.resize(n)
+	still_ticks.resize(n)
+	task.resize(n)
+	task_x.resize(n)
+	task_y.resize(n)
+	task_arg.resize(n)
 
 
 func _cols() -> Array[PackedInt32Array]:
 	return [def_index, team, owner, hp, crew, damage, suppression, morale, members_alive,
 		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills, emcon, link, link_lost,
-		carrier, engage_range, xp, rank]
+		carrier, engage_range, xp, rank, rout_until, still_ticks, task, task_arg]
 
 
 func hash_entity(id: int, h: Checksum) -> void:
 	for col: PackedInt32Array in _cols():
 		h.add_int(col[id])
+	h.add_int(task_x[id])
+	h.add_int(task_y[id])

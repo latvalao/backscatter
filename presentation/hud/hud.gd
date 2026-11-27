@@ -20,6 +20,7 @@ var _ended: bool = false
 const HELP: String = "LMB select/box, double-click selects type  |  RMB move/attack/board, drag to set facing  |  Shift queue  |  Alt+RMB reverse\n" \
 	+ "A attack-move  R reverse  F fire mission  G smoke mission  X smoke  S stop  H hold fire  Y engage range (Shift+Y clear)\n" \
 	+ "U unload  T unload at point  N formation  Tab subgroup  . idle unit  Home HQ  Space last alert  L line of sight\n" \
+	+ "M lay mines (engineer)  RMB wreck: salvage (engineer)  I illumination flare (mortar/artillery)\n" \
 	+ "F1-F8 build/produce  Ctrl+1-9 group  Z EMCON  Ctrl+RMB safe route  D dosimetry  V signals  P pause  +/- speed  Esc menu"
 
 
@@ -159,8 +160,9 @@ func _card_text(w: SimWorld) -> String:
 		lines.append("%s   hp %d/%d%s" % [d.display_name, u.hp[id], d.hp,
 			"" if w.structures.is_complete(id) else "   UNDER CONSTRUCTION"])
 		return "\n".join(lines)
-	lines.append("%s   [%s]   order: %s%s" % [d.display_name, d.role, OrderStore.NAMES[w.orders.kind[id]],
-		"   HOLD FIRE" if u.stance[id] == UnitStore.STANCE_HOLD_FIRE else ""])
+	lines.append("%s   [%s]   %s (%d xp)   order: %s%s%s" % [d.display_name, d.role, Veterancy.NAMES[u.rank[id]], u.xp[id],
+		OrderStore.NAMES[w.orders.kind[id]], "   HOLD FIRE" if u.stance[id] == UnitStore.STANCE_HOLD_FIRE else "",
+		"   ROUTING" if u.rout_until[id] > w.tick else ("   DUG IN" if FieldSystem.dug_in_bonus(w, id) > 0 and d.is_infantry else "")])
 	if d.is_infantry:
 		var hp: PackedStringArray = PackedStringArray()
 		for m: int in range(d.members):

@@ -8,6 +8,9 @@ const PIN_THRESHOLD: int = 600
 const BREAK_THRESHOLD: int = 900
 const RETREAT_DISTANCE_MM: int = 150000
 const QUIET_TICKS: int = 20
+## Below this morale (half for vehicles) a fully suppressed unit routs.
+const ROUT_MORALE: int = 280
+const ROUT_TICKS: int = 250
 
 
 func step(world: SimWorld, tick: int) -> void:
@@ -24,14 +27,26 @@ func step(world: SimWorld, tick: int) -> void:
 			# better troops shake off suppression faster
 			var decay: int = (8 + def.morale / 100) if quiet else 2
 			u.suppression[id] = maxi(0, s - decay)
-		var cap: int = def.morale
+		var cap: int = Veterancy.morale_cap(world, id, def.morale)
 		if world.radiation.has(id):
 			cap -= DoseState.MORALE_PENALTY[DoseState.of(world.radiation.dose[id])]
 		if u.morale[id] > cap:
 			u.morale[id] = maxi(0, cap)
 		elif quiet and u.suppression[id] < 200 and u.morale[id] < cap and tick % 5 == 0:
 			u.morale[id] += 1
-		if def.is_infantry and u.suppression[id] >= BREAK_THRESHOLD and u.morale[id] < 400 \
+		if u.rout_until[id] > tick:
+			# routing: keeps running and ignores orders until it recovers
+			if world.orders.kind[id] != OrderStore.RETREAT and def.max_speed > 0 and not def.is_air:
+				_retreat(world, id)
+			continue
+		if def.is_air or def.max_speed == 0:
+			continue
+		var breaks: bool = u.suppression[id] >= BREAK_THRESHOLD and u.morale[id] < (ROUT_MORALE if def.is_infantry else ROUT_MORALE / 2)
+		if breaks:
+			u.rout_until[id] = tick + ROUT_TICKS
+			world.emit(SimEvent.Type.ROUTED, id)
+			_retreat(world, id)
+		elif def.is_infantry and u.suppression[id] >= BREAK_THRESHOLD and u.morale[id] < 400 \
 				and world.orders.kind[id] != OrderStore.RETREAT:
 			_retreat(world, id)
 

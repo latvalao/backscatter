@@ -5,14 +5,16 @@
 class_name SelectionController
 extends Control
 
-enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE }
+enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE, LAY_MINES, FLARE }
 
 const CLICK_PICK_PX: float = 24.0
 const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "REVERSE: left-click destination",
 	"FIRE MISSION (HE): left-click impact point", "FIRE MISSION (SMOKE): left-click impact point",
 	"PLACE %s: left-click to build (Shift: keep placing), right-click cancels",
 	"UNLOAD AT: left-click where the transports should drop their troops",
-	"ENGAGEMENT RANGE: left-click the distance to open fire at (Shift+Y clears)"]
+	"ENGAGEMENT RANGE: left-click the distance to open fire at (Shift+Y clears)",
+	"MINEFIELD: left-click where the engineer lays mines (30 supply)",
+	"ILLUMINATION: left-click where to fire a flare"]
 const DOUBLE_CLICK_S: float = 0.35
 const FACING_DRAG_PX: float = 24.0
 
@@ -227,6 +229,10 @@ func _key(k: InputEventKey) -> void:
 			message = "Unload"
 		KEY_T:
 			set_mode(Mode.UNLOAD_AT)
+		KEY_M:
+			set_mode(Mode.LAY_MINES)
+		KEY_I:
+			set_mode(Mode.FLARE)
 		KEY_Y:
 			if k.shift_pressed:
 				submit(EngageRangeCommand.new(selection, 0))
@@ -320,6 +326,12 @@ func _mode_click(pos: Vector2, shift: bool) -> void:
 		Mode.UNLOAD_AT:
 			submit(UnloadCommand.new(selection, s.x, s.y, true))
 			message = "Unloading at the marked point"
+		Mode.LAY_MINES:
+			submit(EngineerTaskCommand.new(selection, UnitStore.TASK_LAY_MINES, s.x, s.y))
+			message = "Laying mines"
+		Mode.FLARE:
+			submit(FlareCommand.new(selection, s.x, s.y))
+			message = "Illumination round"
 		Mode.ENGAGE_RANGE:
 			var c: Vector3 = _selection_center()
 			var r: float = Vector2(c.x - (gp as Vector3).x, c.z - (gp as Vector3).z).length()
@@ -355,6 +367,12 @@ func _right_click(pos: Vector2, shift: bool, alt: bool) -> void:
 	if enemy > 0 and runner.world.units.team[enemy] != SimWorld.NEUTRAL_TEAM:
 		submit(AttackCommand.new(selection, enemy))
 		return
+	# right-click a wreck with an engineer selected: salvage it
+	var wreck: int = views.pick_wreck(pos, cam.camera)
+	if wreck != 0 and _has_engineer():
+		submit(EngineerTaskCommand.new(selection, UnitStore.TASK_SALVAGE, 0, 0, wreck))
+		message = "Salvaging"
+		return
 	# right-click a friendly transport with infantry selected: board it
 	var own: int = _pick_unit(pos, true)
 	if own > 0 and not selection.has(own) and Transport.capacity(runner.world.def_of(own)) > 0 and _has_infantry():
@@ -375,6 +393,13 @@ func _movers() -> PackedInt32Array:
 		if not runner.world.is_structure(id):
 			out.append(id)
 	return out
+
+
+func _has_engineer() -> bool:
+	for id: int in selection:
+		if runner.world.is_unit(id) and runner.world.def_of(id).has_ability("build"):
+			return true
+	return false
 
 
 func _has_infantry() -> bool:

@@ -127,7 +127,7 @@ static func build(id: String, faction: String, role: String, mobility: String) -
 			return quad_drone(id, row)
 		"nc_uav_fixed":
 			return fixed_drone(id, row)
-	if role in ["infantry", "at_infantry", "scout", "indirect", "support"]:
+	if role in ["infantry", "at_infantry", "scout", "indirect", "support", "crew"]:
 		return squad(id, row, role, faction)
 	return null
 

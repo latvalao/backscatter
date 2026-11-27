@@ -57,6 +57,10 @@ var winner_team: int = -1
 var vision: Array[TeamVision] = []
 var projectiles: ProjectileStore = ProjectileStore.new()
 var smoke: SmokeStore = SmokeStore.new()
+## Illumination flares (circles of light at night).
+var flares: SmokeStore = SmokeStore.new()
+var wrecks: WreckStore = WreckStore.new()
+var mines: MineStore = MineStore.new()
 
 var is_night: bool = false
 
@@ -119,6 +123,7 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 	_systems.append(ProductionSystem.new())    # 9
 	_systems.append(ObjectiveSystem.new())     # 9
 	_systems.append(LogisticsSystem.new())     # 9
+	_systems.append(FieldSystem.new())         # 9: mines, salvage, crews, flares
 	_systems.append(VictorySystem.new())       # 10
 
 
@@ -320,6 +325,50 @@ func destroy_entity(id: int) -> void:
 			Transport.bail_out(self, id)
 
 
+## A destroyed vehicle leaves a salvageable wreck; surviving crew bail out.
+func _leave_wreck(id: int) -> void:
+	var d: UnitStats = def_of(id)
+	if d.is_infantry or d.is_air:
+		return
+	wrecks.add(id, d.index, transform.x[id], transform.y[id], d.cost_supply / 4)
+	var alive: int = 0
+	for b: int in range(4):
+		if (units.crew[id] & (1 << b)) != 0:
+			alive += 1
+	var owner: int = units.owner[id]
+	if alive == 0 or owner < 0 or owner >= players.count():
+		return
+	var crew_def_i: int = defs.unit_index(players.faction[owner] + "_crew")
+	if crew_def_i < 0:
+		return
+	var back: int = (transform.heading[id] + SimConst.ANGLE_HALF) & SimConst.ANGLE_MASK
+	var cx: int = transform.x[id] + 9000 * FixedMath.cos_b(back) / FixedMath.ONE
+	var cy: int = transform.y[id] + 9000 * FixedMath.sin_b(back) / FixedMath.ONE
+	var crew: int = spawn_unit(defs.units[crew_def_i], units.team[id], owner, clampi(cx, 0, map_width_mm() - 1), clampi(cy, 0, map_height_mm() - 1), back)
+	if crew == 0:
+		return
+	var cd: UnitStats = defs.units[crew_def_i]
+	for m: int in range(alive, cd.members):
+		squads.member_hp[crew * SquadStore.MAX_MEMBERS + m] = 0
+	units.members_alive[crew] = mini(alive, cd.members)
+	units.suppression[crew] = 700
+	# crews pull back to their HQ or barracks to be recovered
+	var best: int = 0
+	var best_d: int = 0
+	for s: int in entities.ids():
+		if not structures.has(s) or units.owner[s] != owner or is_dying(s):
+			continue
+		var role: String = def_of(s).role
+		if role != "hq" and role != "barracks":
+			continue
+		var d2: int = FixedMath.length2(transform.x[s] - cx, transform.y[s] - cy)
+		if best == 0 or d2 < best_d:
+			best = s
+			best_d = d2
+	if best != 0:
+		Orders.start(self, crew, OrderStore.RETREAT, 0, transform.x[best], transform.y[best], 0)
+
+
 ## Rebuild team_units (call once per tick before vision).
 func rebuild_team_rosters() -> void:
 	var built: Array[PackedInt32Array] = []
@@ -380,6 +429,7 @@ func release_flow(id: int) -> void:
 
 func _cleanup() -> void:
 	smoke.expire(tick)
+	flares.expire(tick)
 	if tick % 100 == 0 and not los_cache.is_empty():
 		var stale: Array = []
 		for key: int in los_cache.keys():
@@ -395,6 +445,8 @@ func _cleanup() -> void:
 			continue
 		release_flow(id)
 		var owner_team: int = units.team[id] if units.has(id) else 0
+		if units.has(id) and not structures.has(id):
+			_leave_wreck(id)
 		if structures.has(id):
 			var sd: UnitStats = def_of(id)
 			var cells: PackedInt32Array = footprint_cells(sd, structures.cell_x[id], structures.cell_y[id])

@@ -237,13 +237,17 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 		var pct: int = maxi(0, u.hp[entity_id]) * 100 / maxi(1, def.hp)
 		text = "%d%%" % pct
 		hurt = pct < 100 or u.damage[entity_id] != 0 or u.crew[entity_id] != def.crew_slots
-	if supp >= MoraleSystem.PIN_THRESHOLD:
+	if u.rank[entity_id] > 0:
+		text = ["", "V ", "E "][u.rank[entity_id]] + text
+	if u.rout_until[entity_id] > world.tick:
+		text += " ROUTING"
+	elif supp >= MoraleSystem.PIN_THRESHOLD:
 		text += " PINNED"
 	elif supp >= 300:
 		text += " supp"
 	_label.text = text
 	_label.modulate = Color(1, 0.55, 0.45) if supp >= MoraleSystem.PIN_THRESHOLD else Color(0.95, 0.95, 0.9)
-	_label.visible = show_label or hurt or supp >= 300
+	_label.visible = show_label or hurt or supp >= 300 or u.rout_until[entity_id] > world.tick
 
 
 ## Turret follows the sim's current target (slot 0); returns to the front otherwise.

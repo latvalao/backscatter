@@ -62,6 +62,7 @@ static func hit_chance(world: SimWorld, shooter: int, target: int, w: WeaponStat
 	if (u.damage[shooter] & UnitStore.DMG_OPTICS) != 0:
 		acc = acc * 700 / 1000
 	acc = acc * DoseState.accuracy(world, shooter) / 1000
+	acc = acc * Veterancy.accuracy(world, shooter) / 1000
 	acc = acc * [700, 1000, 1150][td.size_class] / 1000
 	if world.mobility.has(target) and absi(world.mobility.speed[target]) * 10 > td.max_speed:
 		acc = acc * 850 / 1000
@@ -77,7 +78,8 @@ static func infantry_cover(world: SimWorld, target: int, td: UnitStats) -> int:
 		return 0
 	var x: int = world.transform.x[target]
 	var y: int = world.transform.y[target]
-	return maxi(TerrainTable.COVER[world.grid.terrain_at(x, y)], world.fortification_cover(x, y, true))
+	var cover: int = maxi(TerrainTable.COVER[world.grid.terrain_at(x, y)], world.fortification_cover(x, y, true))
+	return mini(850, cover + FieldSystem.dug_in_bonus(world, target))
 
 
 ## Direct/ATGM hit on target from position (sx, sy).
@@ -111,6 +113,8 @@ static func _hit_vehicle(world: SimWorld, target: int, td: UnitStats, pen: int, 
 			if world.rng.chance_permille(350):
 				_kill_random_crew(world, target)
 		add_suppression(world, target, supp)
+		if world.is_unit(shooter):
+			Veterancy.award(world, shooter, Veterancy.XP_PENETRATION)
 		world.emit(SimEvent.Type.PENETRATED, target, shooter, face)
 	else:
 		u.hp[target] -= dmg / 20
@@ -149,6 +153,8 @@ static func _wound_random_member(world: SimWorld, target: int, dmg: int, shooter
 				u.members_alive[target] -= 1
 				u.morale[target] = maxi(0, u.morale[target] - MORALE_LOSS_PER_DEATH)
 				world.emit(SimEvent.Type.SOLDIER_KILLED, target, shooter, u.members_alive[target])
+				if world.is_unit(shooter):
+					Veterancy.award(world, shooter, Veterancy.XP_CASUALTY)
 				if u.members_alive[target] <= 0:
 					_credit_kill(world, shooter)
 					world.destroy_entity(target)
@@ -172,6 +178,7 @@ static func kill_one_member(world: SimWorld, target: int) -> void:
 static func _credit_kill(world: SimWorld, shooter: int) -> void:
 	if world.is_unit(shooter):
 		world.units.kills[shooter] += 1
+		Veterancy.award(world, shooter, Veterancy.XP_KILL)
 
 
 static func add_suppression(world: SimWorld, target: int, amount: int) -> void:

@@ -29,7 +29,9 @@ enum Type {
 	PROMOTED,        # entity = unit, value = new rank
 	ROUTED,          # entity = unit (morale broke)
 	MINE,            # entity = victim (0 if none), x/y = mine position
-	ALERT,           # entity = subject, value = alert code, x/y = place
+	ALERT,           # entity = subject, value = alert code (1 = crew recovered), x/y = place
+	SALVAGED,        # entity = wreck's old id, other = engineer, value = supply, x/y = place
+	FLARE,           # x/y = flare position, other = firing unit
 }
 
 var kind: Type
