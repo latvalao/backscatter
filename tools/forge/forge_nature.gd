@@ -206,7 +206,7 @@ static func tufts() -> ForgeMesh:
 		var r: float = 0.12 + float(i % 3) * 0.08
 		var h: float = 0.45 + float((i * 5) % 4) * 0.12
 		var lean: Transform3D = Transform3D(Basis(Vector3(-sin(a), 0, cos(a)), 0.35 + float(i % 2) * 0.2), Vector3(cos(a) * r, 0, sin(a) * r))
-		m.box(Vector3(0, -0.05, 0), Vector3(0.09, h, 0.03), ForgeModels.MOSS if i % 3 != 0 else ForgeModels.REED, 0.0, Vector2(0.1, 0.2),
+		m.box(Vector3(0, -0.05, 0), Vector3(0.14, h, 0.04), ForgeModels.MOSS if i % 3 != 0 else ForgeModels.REED, 0.0, Vector2(0.1, 0.2),
 			Vector2.ZERO, Vector2.ONE, Vector2.ZERO, lean)
 	return m
 
@@ -365,9 +365,10 @@ static func house_ruin() -> ForgeMesh:
 ## Shell crater: a low ring of thrown earth around a dark hollow.
 static func crater() -> ForgeMesh:
 	var m: ForgeMesh = mesh()
-	for i: int in range(8):
-		var a: float = TAU * i / 8.0
-		m.blob(Vector3(cos(a) * 2.4, 0.0, sin(a) * 2.4), Vector3(1.3, 0.45, 1.0), 6, 3, ForgeModels.BARK, true, true, 0.3, 70 + i)
+	for i: int in range(14):
+		var a: float = TAU * i / 14.0
+		var rr: float = 2.3 + float(i % 3) * 0.25
+		m.blob(Vector3(cos(a) * rr, -0.05, sin(a) * rr), Vector3(1.25, 0.3 + float(i % 2) * 0.1, 0.8), 6, 3, ForgeModels.BARK, true, true, 0.35, 70 + i)
 	return m
 
 

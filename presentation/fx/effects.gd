@@ -261,6 +261,9 @@ func muzzle_flash(p: Vector3, big: bool) -> void:
 ## Shell / rocket impact: flash and light, a fireball, thrown dirt and debris,
 ## a rolling smoke billow that drifts with the wind, and a crater for artillery.
 func explosion(p: Vector3, size_m: float, crater: bool) -> void:
+	if terrain != null and terrain.terrain_at(p) == TerrainTable.WATER:
+		_splash(p, size_m)
+		return
 	_blasts.append(Vector4(p.x, p.y, p.z, size_m))
 	_blast_t.append(0.6)
 	if size_m >= 2.0:
@@ -343,6 +346,33 @@ func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 		terrain.stamp_crater(p, size_m * 0.9, 0.45)
 	if terrain != null and size_m >= 3.0:
 		terrain.damage(p, size_m * 1.3, self)
+
+
+## Shell into water: a white column and spray, a ring of foam, no crater.
+func _splash(p: Vector3, size_m: float) -> void:
+	var cell: float = SimGrid.CELL_MM * 0.001
+	var wp: Vector3 = Vector3(p.x, terrain.grid.ground_mm[terrain.grid.index(clampi(floori(p.x / cell), 0, terrain.grid.width - 1), clampi(floori(-p.z / cell), 0, terrain.grid.height - 1))] * 0.001 - 0.35, p.z)
+	var k: float = clampf(sqrt(size_m) * 0.75, 0.6, 2.2)
+	var pm: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 12.0
+	pm.initial_velocity_min = 7.0 * k
+	pm.initial_velocity_max = 13.0 * k
+	pm.gravity = Vector3(0, -14, 0)
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = size_m * 0.25
+	pm.angle_max = 360.0
+	var g: Gradient = Gradient.new()
+	g.set_color(0, Color(0.92, 0.94, 0.95, 0.9))
+	g.set_color(1, Color(0.85, 0.88, 0.9, 0.0))
+	var gt: GradientTexture1D = GradientTexture1D.new()
+	gt.gradient = g
+	pm.color_ramp = gt
+	var col: GPUParticles3D = _particles(int(clampf(size_m * 8.0, 12, 40)), 1.6, pm, _sprite_mesh(1.6 * k, true, false, true), true)
+	col.position = wp
+	add_child(col)
+	_transients.append({"node": col, "t": 2.0, "kind": "free", "size": 0.0})
+	_light(wp + Vector3.UP * 2.0, 3.0, size_m * 4.0, 0.12, Color(1.0, 0.75, 0.5))
 
 
 ## A ground-hugging ring of dust racing out from the blast.

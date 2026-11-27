@@ -44,6 +44,13 @@ void fragment() {
 	c = mix(c, c * vec3(1.08, 1.0, 0.85), tint.y - 0.5);
 	c *= mix(1.0, COLOR.r, 0.6);
 	float rough = 0.9;
+	if (col == 5 || col == 6) {
+		// grass and reed blades take the ground's lighting (an up normal), so
+		// tufts read as taller grass instead of dark specks
+		NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+		c *= 1.2;
+		BACKLIGHT = c * 0.3;
+	}
 	if (needle || leaf) {
 		BACKLIGHT = c * 0.35;
 	}

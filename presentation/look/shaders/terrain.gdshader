@@ -145,7 +145,14 @@ void fragment() {
 		col = street;
 		rough = mix(0.75, 0.9, sw);
 	} else {
-		float rd = cc.r * smoothstep(0.0, 0.12, min(min(cf.x, 1.0 - cf.x) + nW * nE, min(cf.y, 1.0 - cf.y) + nN * nS) + (noise(world_pos.xz * 0.35) - 0.5) * 0.08);
+		// country roads: bilinear road weight from the cell texture, cut with a
+		// crisp edge, so diagonal roads stay smooth instead of stair-stepped
+		vec2 g2 = gc - 0.5;
+		ivec2 b0 = ivec2(floor(g2));
+		vec2 t2 = fract(g2);
+		float rbl = mix(mix(cell_at(b0, csz).r, cell_at(b0 + ivec2(1, 0), csz).r, t2.x),
+			mix(cell_at(b0 + ivec2(0, 1), csz).r, cell_at(b0 + ivec2(1, 1), csz).r, t2.x), t2.y);
+		float rd = smoothstep(0.36, 0.52, rbl + (noise(world_pos.xz * 0.35) - 0.5) * 0.1);
 		vec3 dirt = vec3(0.37, 0.34, 0.28) * (0.88 + 0.24 * noise(world_pos.xz * 6.0));
 		col = mix(col, dirt, rd);
 		float ruts = rd * smoothstep(0.35, 0.5, noise(world_pos.xz * vec2(0.6, 0.6)));
