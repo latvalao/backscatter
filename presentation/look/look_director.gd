@@ -77,6 +77,8 @@ func _ready() -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_post = ShaderMaterial.new()
 	_post.shader = load("res://presentation/look/shaders/post.gdshader") as Shader
+	_post.set_shader_parameter("palette_lut", retro_lut())
+	apply_retro()
 	rect.material = _post
 	layer.add_child(rect)
 	_build_rain()
@@ -86,6 +88,35 @@ func _ready() -> void:
 	_apply(current, true)
 	RenderingServer.global_shader_parameter_set("snow_amount", 1.0 if GraphicsSettings.season == "winter" else 0.0)
 	RenderingServer.global_shader_parameter_set("season", 1.0 if GraphicsSettings.season == "winter" else 0.0)
+
+
+## Retro filter strengths for the current setting; pixel blocks scale with
+## the window so the look holds at 1440p and 4K.
+func apply_retro() -> void:
+	var lvl: int = GraphicsSettings.retro
+	var h: float = get_viewport().get_visible_rect().size.y if is_inside_tree() else 900.0
+	var px: float = [1.0, 2.0, 3.0][lvl] * maxf(1.0, roundf(h / 900.0))
+	_post.set_shader_parameter("pixel_size", px)
+	_post.set_shader_parameter("palette_amount", [0.0, 0.55, 0.9][lvl])
+	_post.set_shader_parameter("dither_amount", [0.0, 0.7, 1.0][lvl])
+	_post.set_shader_parameter("outline_amount", [0.0, 0.35, 0.55][lvl])
+
+
+## The palette cube (tools/gen_retro_lut.py): 32 tiles of 32 x 32 -> 3D texture.
+static func retro_lut() -> ImageTexture3D:
+	var src: Texture2D = load("res://presentation/look/retro_lut.png") as Texture2D
+	var tex: ImageTexture3D = ImageTexture3D.new()
+	if src == null:
+		return tex
+	var img: Image = src.get_image()
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGB8)
+	var slices: Array[Image] = []
+	for b: int in range(32):
+		slices.append(img.get_region(Rect2i(b * 32, 0, 32, 32)))
+	tex.create(Image.FORMAT_RGB8, 32, 32, 32, false, slices)
+	return tex
 
 
 func preset(name: String) -> LookPreset:
@@ -123,8 +154,14 @@ func force_preset(name: String) -> void:
 	_apply(current, true)
 
 
+var _retro_applied: int = -1
+
+
 func _process(delta: float) -> void:
 	_clock += delta
+	if _retro_applied != GraphicsSettings.retro:
+		_retro_applied = GraphicsSettings.retro
+		apply_retro()
 	var want: String = base_preset if locked else wanted_preset()
 	if want != _target_name:
 		_from = current
@@ -166,6 +203,7 @@ func _weather(delta: float) -> void:
 		var pm: ParticleProcessMaterial = _rain.process_material as ParticleProcessMaterial
 		pm.direction = Vector3(wind.x * 0.08, -1.0, wind.y * 0.08)
 	_post.set_shader_parameter("grain", (current.grain if GraphicsSettings.grain else 0.0) + dose_grain)
+	_post.set_shader_parameter("speckle", 0.0 if GraphicsSettings.retro == 0 else dose_grain * 12.0)
 
 
 func _apply(p: LookPreset, rebuild_lut: bool) -> void:

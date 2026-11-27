@@ -53,6 +53,12 @@ func _ready() -> void:
 	season.selected = 1 if GraphicsSettings.season == "winter" else 0
 	season.item_selected.connect(func(i: int) -> void: GraphicsSettings.season = "winter" if i == 1 else "autumn")
 	box.add_child(season)
+	var retro: OptionButton = OptionButton.new()
+	for n2: String in GraphicsSettings.RETRO_NAMES:
+		retro.add_item("Retro filter: " + n2)
+	retro.selected = GraphicsSettings.retro
+	retro.item_selected.connect(func(i: int) -> void: GraphicsSettings.retro = i)
+	box.add_child(retro)
 	_check(box, "Tilt-shift depth of field", GraphicsSettings.tilt_shift, func(on: bool) -> void: GraphicsSettings.tilt_shift = on)
 	_check(box, "Film grain", GraphicsSettings.grain, func(on: bool) -> void: GraphicsSettings.grain = on)
 	var note: Label = Label.new()

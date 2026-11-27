@@ -30,6 +30,8 @@ func _initialize() -> void:
 			GraphicsSettings.season = a.substr(9)
 		elif a.begins_with("--quality="):
 			GraphicsSettings.quality = a.substr(10).to_int()
+		elif a.begins_with("--retro="):
+			GraphicsSettings.retro = a.substr(8).to_int()
 		elif a.begins_with("--zoom="):
 			_zoom = a.substr(7).to_float()
 		elif a.begins_with("--view="):

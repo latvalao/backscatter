@@ -12,6 +12,9 @@ static var tilt_shift: bool = true
 static var grain: bool = true
 static var season: String = "autumn"   # autumn | winter
 static var time_of_day: String = "auto" # auto | golden_afternoon | overcast | dawn_mist | dusk | night | storm
+## Retro screen filter: 0 off, 1 subtle, 2 full.
+static var retro: int = 1
+const RETRO_NAMES: Array[String] = ["Off", "Subtle", "Full"]
 ## Volumes 0..1 for the Master / Effects / Ambient / Radio buses.
 static var volumes: Dictionary = {"Master": 0.8, "Effects": 0.9, "Ambient": 0.6, "Radio": 0.8}
 ## Rebound keys: action -> keycode (see KeyBindings.ACTIONS).
@@ -31,6 +34,7 @@ static func load_settings() -> void:
 	grain = bool(cf.get_value("gfx", "grain", grain))
 	season = str(cf.get_value("gfx", "season", season))
 	time_of_day = str(cf.get_value("gfx", "time_of_day", time_of_day))
+	retro = int(cf.get_value("gfx", "retro", retro))
 	var vol: Variant = cf.get_value("audio", "volumes", volumes)
 	if typeof(vol) == TYPE_DICTIONARY:
 		volumes = vol
@@ -46,6 +50,7 @@ static func save_settings() -> void:
 	cf.set_value("gfx", "grain", grain)
 	cf.set_value("gfx", "season", season)
 	cf.set_value("gfx", "time_of_day", time_of_day)
+	cf.set_value("gfx", "retro", retro)
 	cf.set_value("audio", "volumes", volumes)
 	cf.set_value("input", "keys", keys)
 	cf.save(PATH)

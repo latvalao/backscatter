@@ -179,8 +179,14 @@ Forest is both the game's beauty and a core gameplay mechanic (LOS, cover).
 7. Vignette — light
 8. Optional **thin ink outline** post-process (depth/normal edge detection) at low opacity on silhouettes — test it; ship it only if it improves readability without looking cartoony.
 
-### 8.3 Do NOT use
-Pixelation, dithering palettes, PSX vertex wobble, CRT/VHS filters, chromatic aberration, heavy lens flares, toon ramps.
+### 8.3 Retro filter (changed by the project owner, replaces the old ban)
+A retro screen filter is part of the look. It is applied to the 3D world only; the HUD, NATO symbols and text stay sharp.
+- Stable pixel blocks (2 px Subtle, 3 px Full, scaled with window height), each block the average of four sharp samples so it doesn't shimmer.
+- Palette lock: ordered dither, then snap to a curated palette built from palette.json (tools/gen_retro_lut.py -> retro_lut.png).
+- Ink edges where neighbouring blocks differ sharply.
+- Radiation speckle: single white blocks, like fogged film, scaling with the dose rate under the camera.
+- Settings: Off / Subtle (default) / Full.
+Still avoid: PSX vertex wobble, CRT/VHS curvature and scanlines, chromatic aberration, heavy lens flares, toon ramps.
 
 ---
 
