@@ -17,3 +17,6 @@
 - Models are generated: edit `tools/forge/*.gd`, then
   `godot --headless --path . -s res://tools/model_forge.gd` (writes `presentation/assets/`).
   Look presets are data in `presentation/look/` (palette.json, presets/*.tres).
+- Sound effects are synthesised: edit `tools/gen_sfx.py`, run `python3 tools/gen_sfx.py`.
+- Feature roadmap and status: `docs/FEATURES.md`. Scripted modes and missions live in
+  `sim/scenarios/directors/` (ScenarioDirector subclasses, deterministic like the AI).

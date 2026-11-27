@@ -3,6 +3,19 @@
 Research notes and a build order for turning the current prototype into a full RTS.
 The UI overhaul comes last, after these features exist, because most of them need new UI.
 
+## Status
+
+Phases 1 to 7 are built. Phase 8, the UI overhaul, is next. Differences from the list below:
+
+- 2.6 Salvage happens where the wreck lies. The engineer drives to it and works for 20 seconds; there is no towing.
+- 3.4 Battlegroups are the light version: one of three per faction, picked in the menu.
+- 4.1 Contact classification is done in presentation: a contact is identified when one of our units is within half its sight range, or a recon unit sees it.
+- 4.2 The replay viewer skips forward only (+1 and +5 minutes). Going back means restarting the replay.
+- 6.4 Operations pick one of three templates from the match seed. The persistent company roster is not built yet.
+- 6.5 Saving stores the order history. Loading replays it to the save point, which takes a few seconds per 10 minutes of play.
+- 7.2 Radio chatter is a squelch sound on orders and new contacts. There are no voices.
+- AI: the commander AI builds helipads, flies attack helicopters and calls off-map support. It does not use transports, mines, flares or smart orders yet.
+
 ## What the reference games do
 
 **Wargame: Red Dragon and WARNO (Eugen).** Realistic Cold War combined arms on large maps.

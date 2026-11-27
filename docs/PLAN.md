@@ -185,6 +185,13 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
   MLRS trails, decon spray VFX, fallen/burnt trees; performance profiling on real GPUs (only
   CPU-rendered here). Health bars are still text labels.
 
+## Feature phases 1–7 (docs/FEATURES.md) ✅, phase 8 UI overhaul next
+See the Status section of docs/FEATURES.md for what each phase built and where it differs
+from the list. Tests: test_command_basics, test_combat_depth, test_air_support,
+test_smart_orders, test_modes; the smoke scene also covers save/load, the replay viewer and
+Containment. Since Phase 2 the passive side digs in, so `test_slow_normal_ai_beats_passive_player`
+runs to 14500 ticks (Normal wins at about 13500).
+
 ## M8 — Modes & content ⬜ (next — after the graphics pass)
 (Broken down when the previous milestone lands — see DESIGN.md §12 for scope.)
 
