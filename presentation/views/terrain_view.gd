@@ -728,6 +728,7 @@ func _register(kind: String, mms: Array, xforms: Array[Transform3D]) -> void:
 func damage(p: Vector3, r: float, fx: Effects) -> void:
 	var r2: float = r * r
 	var felled: int = 0
+	var house_fire: bool = false
 	for set: Dictionary in _damageable:
 		var lo: Vector3 = set["lo"]
 		var hi: Vector3 = set["hi"]
@@ -752,7 +753,9 @@ func damage(p: Vector3, r: float, fx: Effects) -> void:
 				_add_debris("fallen_tree" if (i % 3) != 0 else "stump", Transform3D(Basis(Vector3.UP, away + PI).scaled(Vector3.ONE * 0.8), o))
 			else:
 				_add_debris("house_ruin", Transform3D(xs[i].basis, o))
-				if fx != null:
+				if fx != null and not house_fire and _burning < 40:
+					house_fire = true
+					_burning += 1
 					fx.burn_at(o, false)
 	if r >= 5.0:
 		var cp: Vector3 = Vector3(p.x, height_at(p), p.z)
