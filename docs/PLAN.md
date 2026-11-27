@@ -3,7 +3,7 @@
 Follows `docs/DESIGN.md` §12. Each milestone ends when its acceptance criteria pass
 in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
 
-## M0 — Project skeleton 🟡 (code complete, awaiting first green CI run)
+## M0 — Project skeleton ✅
 - ✅ Folder structure (§7.8), `project.godot` with untyped declarations = error
 - ✅ `SimConst`, `FixedMath` (isqrt, baked sin/atan tables, binary angles), `SimRng`
   (xoshiro128**, 32-bit masked), `EntityStore` (monotonic ids), SoA component stores
@@ -12,9 +12,9 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
 - ✅ Presentation: `SimRunner` (10 Hz accumulator + interpolation), `ViewSync`,
   `UnitView`, `RtsCamera`, M0 demo scene (100 wandering units)
 - ✅ Headless test runner `tests/run.gd`, `tools/lint_sim.py`, GitHub Actions CI
-- ⬜ **Accept:** CI green — determinism test (100 entities × 1000 ticks, identical checksums)
+- ✅ **Accept:** CI green — determinism test (100 entities × 1000 ticks, identical checksums every tick); 29/29 tests
 
-## M1 — Map, movement, selection
+## M1 — Map, movement, selection ⬜ (next)
 1. `SimGrid` (8 m cells): height, terrain type, per-mobility-class cost, LOS occlusion, cover.
    Test map baked from a PNG/JSON by `tools/map_baker` (4×4 km = 500×500 cells).
 2. `UnitDef` resource + JSON import → immutable int stat tables; first defs (truck, MBT, squad).
