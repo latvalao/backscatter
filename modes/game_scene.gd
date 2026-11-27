@@ -144,6 +144,25 @@ func _ready() -> void:
 	hud.scene = self
 	add_child(hud)
 
+	var minimap: Minimap = Minimap.new()
+	minimap.runner = runner
+	minimap.views = views
+	minimap.controller = controller
+	hud.add_child(minimap)
+	minimap.setup()
+	var alerts: AlertFeed = AlertFeed.new()
+	alerts.runner = runner
+	alerts.views = views
+	alerts.local_player = local_player
+	alerts.minimap = minimap
+	hud.add_child(alerts)
+	controller.alerts = alerts
+	var los: LosTool = LosTool.new()
+	los.runner = runner
+	los.controller = controller
+	los.terrain = terrain
+	add_child(los)
+
 	var geiger: Geiger = Geiger.new()
 	geiger.runner = runner
 	geiger.controller = controller

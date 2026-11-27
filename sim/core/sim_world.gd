@@ -316,6 +316,8 @@ func destroy_entity(id: int) -> void:
 	if entities.is_alive(id) and not is_dying(id):
 		_dying[id] = 1
 		_pending_destroy.append(id)
+		if units.has(id) and def_of(id).passenger_capacity > 0:
+			Transport.bail_out(self, id)
 
 
 ## Rebuild team_units (call once per tick before vision).
@@ -328,7 +330,7 @@ func rebuild_team_rosters() -> void:
 	for t: int in range(MAX_TEAMS):
 		var arr: PackedInt32Array = PackedInt32Array()
 		for id: int in ids:
-			if units.has(id) and units.team[id] == t and not is_dying(id):
+			if units.has(id) and units.team[id] == t and not is_dying(id) and units.carrier[id] == 0:
 				arr.append(id)
 		per_team[t] = arr
 	team_units = per_team

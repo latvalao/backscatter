@@ -5,12 +5,16 @@
 class_name SelectionController
 extends Control
 
-enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE }
+enum Mode { NORMAL, ATTACK_MOVE, REVERSE, FIRE_MISSION, FIRE_SMOKE, PLACE, UNLOAD_AT, ENGAGE_RANGE }
 
 const CLICK_PICK_PX: float = 24.0
 const MODE_NAMES: Array[String] = ["", "ATTACK-MOVE: left-click target point", "REVERSE: left-click destination",
 	"FIRE MISSION (HE): left-click impact point", "FIRE MISSION (SMOKE): left-click impact point",
-	"PLACE %s: left-click to build (Shift: keep placing), right-click cancels"]
+	"PLACE %s: left-click to build (Shift: keep placing), right-click cancels",
+	"UNLOAD AT: left-click where the transports should drop their troops",
+	"ENGAGEMENT RANGE: left-click the distance to open fire at (Shift+Y clears)"]
+const DOUBLE_CLICK_S: float = 0.35
+const FACING_DRAG_PX: float = 24.0
 
 var runner: SimRunner
 var views: ViewSync
@@ -30,6 +34,17 @@ var _drag_now: Vector2 = Vector2.ZERO
 var _ghost: MeshInstance3D
 var _ghost_mat: StandardMaterial3D
 var _ghost_cell: Vector2i = Vector2i(-1, -1)
+## Formation used for move orders (cycled with N).
+var formation: int = Formation.BLOCK
+## Right-drag sets the final facing: press point, current point.
+var _rdrag: bool = false
+var _rdrag_start: Vector2 = Vector2.ZERO
+var _rdrag_now: Vector2 = Vector2.ZERO
+var _last_click_ms: int = 0
+var _last_click_def: int = -1
+var _tab_index: int = 0
+## Set by GameScene: alert feed for the Space key.
+var alerts: AlertFeed
 
 
 func _ready() -> void:
@@ -59,7 +74,7 @@ func submit(cmd: SimCommand) -> void:
 func _process(_delta: float) -> void:
 	var keep: PackedInt32Array = PackedInt32Array()
 	for id: int in selection:
-		if runner.world.is_unit(id):
+		if runner.world.is_unit(id) and runner.world.units.carrier[id] == 0:
 			keep.append(id)
 	if keep.size() != selection.size():
 		_set_selection(keep)
@@ -72,7 +87,40 @@ func _draw() -> void:
 		var r: Rect2 = Rect2(_drag_start, _drag_now - _drag_start).abs()
 		draw_rect(r, Color(0.6, 1.0, 0.6, 0.12), true)
 		draw_rect(r, Color(0.6, 1.0, 0.6, 0.8), false, 1.0)
+	if _rdrag and _rdrag_start.distance_to(_rdrag_now) > FACING_DRAG_PX:
+		draw_line(_rdrag_start, _rdrag_now, Color(0.9, 0.95, 1.0, 0.9), 2.0)
+		var d: Vector2 = (_rdrag_now - _rdrag_start).normalized()
+		draw_line(_rdrag_now, _rdrag_now - d.rotated(0.5) * 14.0, Color(0.9, 0.95, 1.0, 0.9), 2.0)
+		draw_line(_rdrag_now, _rdrag_now - d.rotated(-0.5) * 14.0, Color(0.9, 0.95, 1.0, 0.9), 2.0)
+	if mode == Mode.ENGAGE_RANGE and not selection.is_empty():
+		var c: Vector3 = _selection_center()
+		var gp: Variant = cam.ground_point(get_viewport().get_mouse_position())
+		if gp != null:
+			var r2: float = Vector2(c.x - (gp as Vector3).x, c.z - (gp as Vector3).z).length()
+			_draw_ground_circle(c, r2, Color(1.0, 0.8, 0.35, 0.9))
 
+
+func _draw_ground_circle(c: Vector3, r: float, col: Color) -> void:
+	var pts: PackedVector2Array = PackedVector2Array()
+	for i: int in range(49):
+		var a: float = TAU * i / 48.0
+		var p: Vector3 = c + Vector3(cos(a) * r, 0, sin(a) * r)
+		p.y = cam.terrain.height_at(p) + 1.0
+		if cam.camera.is_position_behind(p):
+			return
+		pts.append(cam.camera.unproject_position(p))
+	draw_polyline(pts, col, 2.0)
+
+
+func _selection_center() -> Vector3:
+	var c: Vector3 = Vector3.ZERO
+	var n: int = 0
+	for id: int in selection:
+		var v: UnitView = views.view_of(id)
+		if v != null:
+			c += v.global_position
+			n += 1
+	return c / maxf(1.0, n)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not enabled:
@@ -82,8 +130,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_mouse_button(mb)
 		return
 	var mm: InputEventMouseMotion = event as InputEventMouseMotion
-	if mm != null and _dragging:
-		_drag_now = mm.position
+	if mm != null:
+		if _dragging:
+			_drag_now = mm.position
+		if _rdrag:
+			_rdrag_now = mm.position
 		return
 	var k: InputEventKey = event as InputEventKey
 	if k != null and k.pressed and not k.echo:
@@ -105,11 +156,34 @@ func _mouse_button(mb: InputEventMouseButton) -> void:
 				_box_select(Rect2(_drag_start, mb.position - _drag_start).abs(), mb.shift_pressed)
 			else:
 				_click_select(mb.position, mb.shift_pressed)
-	elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
-		if mode != Mode.NORMAL:
-			set_mode(Mode.NORMAL)
-			return
-		_right_click(mb.position, mb.shift_pressed, mb.alt_pressed)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.pressed:
+			if mode != Mode.NORMAL:
+				set_mode(Mode.NORMAL)
+				return
+			_rdrag = true
+			_rdrag_start = mb.position
+			_rdrag_now = mb.position
+		elif _rdrag:
+			_rdrag = false
+			if _rdrag_start.distance_to(mb.position) > FACING_DRAG_PX:
+				_right_drag(_rdrag_start, mb.position, mb.shift_pressed)
+			else:
+				_right_click(_rdrag_start, mb.shift_pressed, mb.alt_pressed)
+
+
+## Right-drag: move to the press point and face toward the release point.
+func _right_drag(a: Vector2, b: Vector2, shift: bool) -> void:
+	if selection.is_empty():
+		return
+	var ga: Variant = cam.ground_point(a)
+	var gb: Variant = cam.ground_point(b)
+	if ga == null or gb == null:
+		return
+	var sa: Vector2i = SimRunner.view_to_sim(ga as Vector3)
+	var sb: Vector2i = SimRunner.view_to_sim(gb as Vector3)
+	var face: int = FixedMath.atan2_b(sb.y - sa.y, sb.x - sa.x)
+	submit(MoveCommand.new(_movers(), sa.x, sa.y, MoveCommand.MODE_MOVE, shift, Input.is_key_pressed(KEY_CTRL), formation, face))
 
 
 func _key(k: InputEventKey) -> void:
@@ -126,9 +200,39 @@ func _key(k: InputEventKey) -> void:
 	if code >= KEY_F1 and code <= KEY_F8:
 		panel.press(code - KEY_F1)
 		return
+	match code:
+		KEY_SPACE:
+			if alerts != null:
+				var p: Variant = alerts.last_position()
+				if p != null:
+					cam.focus(p as Vector3)
+			return
+		KEY_HOME:
+			_focus_hq()
+			return
+		KEY_PERIOD:
+			_select_idle()
+			return
+		KEY_N:
+			formation = (formation + 1) % Formation.NAMES.size()
+			message = "Formation: " + Formation.NAMES[formation]
+			return
 	if selection.is_empty():
 		return
 	match code:
+		KEY_TAB:
+			_cycle_subgroup()
+		KEY_U:
+			submit(UnloadCommand.new(selection))
+			message = "Unload"
+		KEY_T:
+			set_mode(Mode.UNLOAD_AT)
+		KEY_Y:
+			if k.shift_pressed:
+				submit(EngageRangeCommand.new(selection, 0))
+				message = "Engagement range: weapon maximum"
+			else:
+				set_mode(Mode.ENGAGE_RANGE)
 		KEY_A:
 			set_mode(Mode.ATTACK_MOVE)
 		KEY_R:
@@ -213,8 +317,16 @@ func _mode_click(pos: Vector2, shift: bool) -> void:
 		return
 	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
 	match mode:
+		Mode.UNLOAD_AT:
+			submit(UnloadCommand.new(selection, s.x, s.y, true))
+			message = "Unloading at the marked point"
+		Mode.ENGAGE_RANGE:
+			var c: Vector3 = _selection_center()
+			var r: float = Vector2(c.x - (gp as Vector3).x, c.z - (gp as Vector3).z).length()
+			submit(EngageRangeCommand.new(selection, int(r * 1000.0)))
+			message = "Open fire inside %d m" % int(r)
 		Mode.ATTACK_MOVE:
-			submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_ATTACK_MOVE, shift))
+			submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_ATTACK_MOVE, shift, false, formation))
 		Mode.REVERSE:
 			submit(MoveCommand.new(selection, s.x, s.y, MoveCommand.MODE_REVERSE, shift))
 		Mode.FIRE_MISSION, Mode.FIRE_SMOKE:
@@ -243,12 +355,93 @@ func _right_click(pos: Vector2, shift: bool, alt: bool) -> void:
 	if enemy > 0 and runner.world.units.team[enemy] != SimWorld.NEUTRAL_TEAM:
 		submit(AttackCommand.new(selection, enemy))
 		return
+	# right-click a friendly transport with infantry selected: board it
+	var own: int = _pick_unit(pos, true)
+	if own > 0 and not selection.has(own) and Transport.capacity(runner.world.def_of(own)) > 0 and _has_infantry():
+		submit(MountCommand.new(selection, own))
+		message = "Boarding"
+		return
 	if gp == null:
 		return
 	var s: Vector2i = SimRunner.view_to_sim(gp as Vector3)
 	var m: int = MoveCommand.MODE_REVERSE if alt else MoveCommand.MODE_MOVE
 	# Ctrl+right-click: "safe" route that avoids fallout (§8)
-	submit(MoveCommand.new(selection, s.x, s.y, m, shift, Input.is_key_pressed(KEY_CTRL)))
+	submit(MoveCommand.new(_movers(), s.x, s.y, m, shift, Input.is_key_pressed(KEY_CTRL), formation))
+
+
+func _movers() -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	for id: int in selection:
+		if not runner.world.is_structure(id):
+			out.append(id)
+	return out
+
+
+func _has_infantry() -> bool:
+	for id: int in selection:
+		if runner.world.is_unit(id) and runner.world.def_of(id).is_infantry:
+			return true
+	return false
+
+
+## Tab: narrow the selection to one unit type at a time, cycling.
+func _cycle_subgroup() -> void:
+	var types: PackedInt32Array = PackedInt32Array()
+	var full: PackedInt32Array = groups.get(-1, selection)
+	for id: int in full:
+		var di: int = runner.world.units.def_index[id] if runner.world.units.has(id) else -1
+		if di >= 0 and not types.has(di):
+			types.append(di)
+	if types.size() <= 1:
+		return
+	types.sort()
+	_tab_index = (_tab_index + 1) % types.size()
+	var sel: PackedInt32Array = PackedInt32Array()
+	for id2: int in groups.get(-1, selection):
+		if runner.world.is_unit(id2) and runner.world.units.def_index[id2] == types[_tab_index]:
+			sel.append(id2)
+	selection = sel
+	views.selected.clear()
+	for id3: int in sel:
+		views.selected[id3] = true
+	message = "%s (%d)" % [runner.world.defs.units[types[_tab_index]].display_name, sel.size()]
+	if panel != null:
+		panel.rebuild()
+
+
+## "." selects the next idle combat unit and centres the camera on it.
+func _select_idle() -> void:
+	var w: SimWorld = runner.world
+	var ids: PackedInt32Array = w.entities.ids()
+	var start: int = selection[0] if selection.size() == 1 else 0
+	var found: int = 0
+	for pass_i: int in range(2):
+		for id: int in ids:
+			if (pass_i == 0 and id <= start) or not w.is_unit(id) or w.is_structure(id) or w.units.carrier[id] != 0:
+				continue
+			if w.units.owner[id] != local_player() or w.orders.kind[id] != OrderStore.NONE or w.def_of(id).is_air:
+				continue
+			found = id
+			break
+		if found != 0:
+			break
+	if found == 0:
+		message = "No idle units"
+		return
+	_set_selection(PackedInt32Array([found]))
+	var v: UnitView = views.view_of(found)
+	if v != null:
+		cam.focus(v.global_position)
+
+
+func _focus_hq() -> void:
+	var w: SimWorld = runner.world
+	for id: int in w.entities.ids():
+		if w.is_structure(id) and w.units.owner[id] == local_player() and w.def_of(id).role == "hq":
+			var v: UnitView = views.view_of(id)
+			if v != null:
+				cam.focus(v.global_position)
+			return
 
 
 ## Units in the selection that can build the structure being placed.
@@ -287,9 +480,31 @@ func _pick_unit(pos: Vector2, own: bool) -> int:
 
 func _click_select(pos: Vector2, add: bool) -> void:
 	var id: int = _pick_unit(pos, true)
+	var now: int = Time.get_ticks_msec()
+	if id > 0 and runner.world.units.def_index[id] == _last_click_def and now - _last_click_ms < int(DOUBLE_CLICK_S * 1000.0):
+		_select_type_on_screen(runner.world.units.def_index[id], add)
+		_last_click_ms = 0
+		return
+	_last_click_ms = now
+	_last_click_def = runner.world.units.def_index[id] if id > 0 else -1
 	var sel: PackedInt32Array = selection.duplicate() if add else PackedInt32Array()
 	if id > 0 and runner.world.units.owner[id] == local_player() and not sel.has(id):
 		sel.append(id)
+	_set_selection(sel)
+
+
+## Double-click: every own unit of that type visible on screen.
+func _select_type_on_screen(def_index: int, add: bool) -> void:
+	var sel: PackedInt32Array = selection.duplicate() if add else PackedInt32Array()
+	var rect: Rect2 = get_viewport().get_visible_rect()
+	for v: Variant in views.all_views():
+		var uv: UnitView = v as UnitView
+		if not uv.visible or uv.team != views.local_team or cam.camera.is_position_behind(uv.global_position):
+			continue
+		if runner.world.units.owner[uv.entity_id] != local_player() or runner.world.units.def_index[uv.entity_id] != def_index:
+			continue
+		if rect.has_point(cam.camera.unproject_position(uv.global_position)) and not sel.has(uv.entity_id):
+			sel.append(uv.entity_id)
 	_set_selection(sel)
 
 
@@ -309,6 +524,8 @@ func _box_select(r: Rect2, add: bool) -> void:
 func _set_selection(ids: PackedInt32Array) -> void:
 	selection = ids.duplicate()
 	selection.sort()
+	groups[-1] = selection.duplicate()
+	_tab_index = -1
 	views.selected.clear()
 	for id: int in selection:
 		views.selected[id] = true

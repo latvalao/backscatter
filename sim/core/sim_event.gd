@@ -24,6 +24,12 @@ enum Type {
 	SIGNAL_FIX,      # entity = emitter, other = team that fixed it, value = radius mm, x/y = estimate
 	JAMMED,          # entity = unit whose link was jammed
 	DRONE_LOST,      # entity = drone
+	MOUNTED,         # entity = passenger, other = carrier
+	DISMOUNTED,      # entity = passenger
+	PROMOTED,        # entity = unit, value = new rank
+	ROUTED,          # entity = unit (morale broke)
+	MINE,            # entity = victim (0 if none), x/y = mine position
+	ALERT,           # entity = subject, value = alert code, x/y = place
 }
 
 var kind: Type

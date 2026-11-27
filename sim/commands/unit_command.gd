@@ -6,12 +6,13 @@ extends SimCommand
 var unit_ids: PackedInt32Array = PackedInt32Array()
 
 
-## The subset of unit_ids that are alive, mobile (not structures) and owned by
-## the issuing player, ascending.
-func owned(world: SimWorld) -> PackedInt32Array:
+## The subset of unit_ids that are alive, mobile (not structures), not riding
+## in a transport and owned by the issuing player, ascending.
+func owned(world: SimWorld, include_carried: bool = false) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
 	for id: int in unit_ids:
-		if world.is_unit(id) and world.mobility.has(id) and world.units.owner[id] == player_id and not out.has(id):
+		if world.is_unit(id) and world.mobility.has(id) and world.units.owner[id] == player_id and not out.has(id) \
+				and (include_carried or world.units.carrier[id] == 0):
 			out.append(id)
 	out.sort()
 	return out

@@ -11,13 +11,17 @@ const ATTACK: int = 3
 const FIRE_MISSION: int = 4
 const RETREAT: int = 5
 const BUILD: int = 6
-const NAMES: Array[String] = ["idle", "move", "attack-move", "attack", "fire mission", "retreat", "build"]
+## Infantry walking to a transport (target) to board it.
+const MOUNT: int = 7
+const NAMES: Array[String] = ["idle", "move", "attack-move", "attack", "fire mission", "retreat", "build", "mount"]
 
 const FLAG_REVERSE: int = 1
 const FLAG_SAFE: int = 2
 const FLAG_SMOKE: int = 4
 ## Eastern pre-planned barrage on an unobserved grid: faster, wider dispersion.
 const FLAG_BARRAGE: int = 8
+## Transport: unload passengers when this move order completes.
+const FLAG_UNLOAD: int = 16
 
 var kind: PackedInt32Array = PackedInt32Array()
 var flags: PackedInt32Array = PackedInt32Array()

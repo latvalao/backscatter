@@ -156,6 +156,19 @@ static func _wound_random_member(world: SimWorld, target: int, dmg: int, shooter
 		pick -= 1
 
 
+## Kills the first living squad member (no RNG; used for bail-out losses).
+static func kill_one_member(world: SimWorld, target: int) -> void:
+	var u: UnitStore = world.units
+	var base: int = target * SquadStore.MAX_MEMBERS
+	for m: int in range(SquadStore.MAX_MEMBERS):
+		if world.squads.member_hp[base + m] > 0:
+			world.squads.member_hp[base + m] = 0
+			u.members_alive[target] -= 1
+			if u.members_alive[target] <= 0:
+				world.destroy_entity(target)
+			return
+
+
 static func _credit_kill(world: SimWorld, shooter: int) -> void:
 	if world.is_unit(shooter):
 		world.units.kills[shooter] += 1

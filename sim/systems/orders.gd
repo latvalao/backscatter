@@ -22,16 +22,26 @@ static func start(world: SimWorld, id: int, kind: int, flags: int, x: int, y: in
 	o.progress_dist[id] = FixedMath.length2(o.goal_x[id] - world.transform.x[id], o.goal_y[id] - world.transform.y[id])
 	world.mobility.blocked_ticks[id] = 0
 	if (kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT \
-			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD) and not world.def_of(id).is_air:
+			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD or kind == OrderStore.MOUNT) and not world.def_of(id).is_air:
 		world.request_path(id)
 
 
 ## Group move: assigns formation slots around (x, y), then either shares a flow
 ## field per mobility class or requests individual paths.
-static func start_group(world: SimWorld, ids: PackedInt32Array, kind: int, flags: int, x: int, y: int, queue: bool) -> void:
+static func start_group(world: SimWorld, ids: PackedInt32Array, kind: int, flags: int, x: int, y: int, queue: bool,
+		formation: int = Formation.BLOCK, face: int = -1) -> void:
 	if ids.is_empty():
 		return
-	var slots: PackedInt64Array = Formation.slots(world, ids, x, y)
+	var slots: PackedInt64Array = Formation.slots(world, ids, x, y, formation, face)
+	# final facing and, for an explicit formation, the slowest member's pace
+	var cap: int = 0
+	if formation != Formation.BLOCK and ids.size() > 1:
+		cap = 1 << 30
+		for id: int in ids:
+			cap = mini(cap, world.def_of(id).max_speed)
+	for id2: int in ids:
+		world.mobility.face[id2] = face
+		world.mobility.speed_cap[id2] = cap
 	if queue:
 		for k: int in range(ids.size()):
 			var id: int = ids[k]

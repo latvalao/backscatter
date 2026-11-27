@@ -46,6 +46,9 @@ func step(world: SimWorld, tick: int) -> void:
 ## Protection factor (§5.4): unit PF × fortification × NBC overpressure.
 static func protection_factor(world: SimWorld, id: int, def: UnitStats, rate: int) -> int:
 	var pf: int = def.protection_factor
+	var car: int = world.units.carrier[id]
+	if car != 0 and world.units.has(car):
+		pf = maxi(pf, world.def_of(car).protection_factor)
 	var t: TransformStore = world.transform
 	var cover: int = world.fortification_cover(t.x[id], t.y[id], def.is_infantry)
 	if cover > 0:

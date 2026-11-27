@@ -74,6 +74,17 @@ static func effective_max_speed(world: SimWorld, id: int, def: UnitStats) -> int
 
 
 func _move_unit(world: SimWorld, id: int, tick: int) -> void:
+	var car: int = world.units.carrier[id]
+	if car != 0:
+		# riding in a transport: follow it (unload if it no longer exists)
+		if world.is_unit(car):
+			world.transform.x[id] = world.transform.x[car]
+			world.transform.y[id] = world.transform.y[car]
+			world.transform.z[id] = world.transform.z[car]
+			world.transform.heading[id] = world.transform.heading[car]
+		else:
+			world.units.carrier[id] = 0
+		return
 	if world.def_of(id).is_air:
 		_move_air(world, id)
 		return
@@ -90,16 +101,31 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 	var final_leg: bool = false
 	var reverse: bool = (o.flags[id] & OrderStore.FLAG_REVERSE) != 0
 	var max_spd: int = effective_max_speed(world, id, def)
+	if m.speed_cap[id] > 0 and kind != OrderStore.NONE:
+		max_spd = mini(max_spd, m.speed_cap[id])
 
+	if kind == OrderStore.MOUNT:
+		var carrier: int = o.target[id]
+		if not world.is_unit(carrier) or Transport.free_slots(world, carrier) <= 0:
+			_complete_order(world, id)
+			return
+		if FixedMath.length2(t.x[carrier] - x, t.y[carrier] - y) <= Transport.BOARD_RANGE_MM + world.def_of(carrier).radius_mm:
+			Transport.board(world, id, carrier)
+			return
+		if FixedMath.length2(t.x[carrier] - o.goal_x[id], t.y[carrier] - o.goal_y[id]) > 20000:
+			o.goal_x[id] = t.x[carrier]
+			o.goal_y[id] = t.y[carrier]
+			world.request_path(id)
+		kind = OrderStore.ATTACK  # follow like a chase: never "arrive" short of boarding
 	if kind == OrderStore.MOVE or kind == OrderStore.ATTACK_MOVE or kind == OrderStore.RETREAT \
 			or kind == OrderStore.ATTACK or kind == OrderStore.BUILD:
-		if kind == OrderStore.ATTACK:
+		if kind == OrderStore.ATTACK and o.kind[id] == OrderStore.ATTACK:
 			_update_attack_goal(world, id, def)
 		var gx: int = o.goal_x[id]
 		var gy: int = o.goal_y[id]
 		var dist: int = FixedMath.length2(gx - x, gy - y)
 		var engaged: bool = kind == OrderStore.ATTACK_MOVE and WeaponSystem.has_engaged_target(world, id)
-		if kind == OrderStore.ATTACK and _attack_in_position(world, id, def):
+		if kind == OrderStore.ATTACK and o.kind[id] == OrderStore.ATTACK and _attack_in_position(world, id, def):
 			engaged = true
 		if kind == OrderStore.BUILD and world.is_unit(o.target[id]) \
 				and Economy.dist_to_structure(world, o.target[id], x, y) <= Economy.mm(world, "build_range_m") - 8000:
@@ -189,11 +215,17 @@ func _move_unit(world: SimWorld, id: int, tick: int) -> void:
 		# idle vehicles turn their front armour toward the current target
 		if def.is_vehicle() and max_spd > 0:
 			var tgt: int = world.weapons.target[id * WeaponStore.MAX_WEAPONS]
+			var want: int = -1
 			if tgt > 0 and world.is_unit(tgt):
-				var want: int = FixedMath.atan2_b(t.y[tgt] - y, t.x[tgt] - x)
+				want = FixedMath.atan2_b(t.y[tgt] - y, t.x[tgt] - x)
+			elif kind == OrderStore.NONE and m.face[id] >= 0:
+				want = m.face[id]
+			if want >= 0:
 				var e2: int = FixedMath.angle_diff(heading, want)
 				if absi(e2) > 1820:
 					heading = (heading + clampi(e2, -def.turn_rate, def.turn_rate)) & SimConst.ANGLE_MASK
+				elif want == m.face[id]:
+					m.face[id] = -1
 
 	var spd: int = m.speed[id]
 	if spd < target_speed:
@@ -329,6 +361,9 @@ func _attack_in_position(world: SimWorld, id: int, def: UnitStats) -> bool:
 
 ## Finish the current order; start the next queued one if any.
 func _complete_order(world: SimWorld, id: int) -> void:
+	if (world.orders.flags[id] & OrderStore.FLAG_UNLOAD) != 0:
+		Transport.unload(world, id)
+	world.mobility.speed_cap[id] = 0
 	world.release_flow(id)
 	world.orders.clear_current(id)
 	world.mobility.blocked_ticks[id] = 0

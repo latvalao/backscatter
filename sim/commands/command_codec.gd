@@ -34,6 +34,12 @@ static func create(type: String) -> SimCommand:
 			return EmconCommand.new()
 		"launch_drone":
 			return LaunchDroneCommand.new()
+		"mount":
+			return MountCommand.new()
+		"unload":
+			return UnloadCommand.new()
+		"engage_range":
+			return EngageRangeCommand.new()
 	return null
 
 

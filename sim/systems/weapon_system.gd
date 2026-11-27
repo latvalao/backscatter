@@ -12,7 +12,7 @@ const NEAR_MISS_RADIUS_MM: int = 20000
 
 func step(world: SimWorld, tick: int) -> void:
 	for id: int in world.entities.ids():
-		if not world.is_unit(id):
+		if not world.is_unit(id) or world.units.carrier[id] != 0:
 			continue
 		var def: UnitStats = world.def_of(id)
 		if def.weapons.is_empty():
@@ -108,6 +108,9 @@ func _acquire(world: SimWorld, id: int, def: UnitStats, w: WeaponStats, team: in
 			continue
 		var d: int = _dist(world, id, tgt)
 		if d < w.range_min_mm or d > w.range_max_mm:
+			continue
+		var lim: int = world.units.engage_range[id]
+		if lim > 0 and d > lim and tgt != forced and not (world.units.last_attacker[id] == tgt and tick - world.units.last_hit_tick[id] < 50):
 			continue
 		var eff: int = effectiveness(world, w, id, tgt)
 		if eff <= 0:

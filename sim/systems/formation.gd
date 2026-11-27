@@ -5,10 +5,17 @@ class_name Formation
 extends RefCounted
 
 const KEY_OFFSET: int = 1 << 26
+const BLOCK: int = 0
+const LINE: int = 1
+const COLUMN: int = 2
+const WEDGE: int = 3
+const NAMES: Array[String] = ["block", "line", "column", "wedge"]
 
 
 ## Returns [x0, y0, x1, y1, ...] goal positions matching ids order.
-static func slots(world: SimWorld, ids: PackedInt32Array, x: int, y: int) -> PackedInt64Array:
+## mode: BLOCK / LINE / COLUMN / WEDGE. face >= 0 sets the formation's front
+## (binary angle); otherwise it faces the direction of travel.
+static func slots(world: SimWorld, ids: PackedInt32Array, x: int, y: int, mode: int = BLOCK, face: int = -1) -> PackedInt64Array:
 	var n: int = ids.size()
 	var out: PackedInt64Array = PackedInt64Array()
 	out.resize(n * 2)
@@ -26,13 +33,17 @@ static func slots(world: SimWorld, ids: PackedInt32Array, x: int, y: int) -> Pac
 		spacing = maxi(spacing, world.def_of(id).radius_mm * 2 + 6000)
 	cx /= n
 	cy /= n
-	var fwd: int = FixedMath.atan2_b(y - cy, x - cx)
+	var fwd: int = face if face >= 0 else FixedMath.atan2_b(y - cy, x - cx)
 	var fx: int = FixedMath.cos_b(fwd)
 	var fy: int = FixedMath.sin_b(fwd)
 	# right-hand vector = forward rotated -90°
 	var rx: int = fy
 	var ry: int = -fx
 	var cols: int = FixedMath.isqrt(2 * n - 1) + 1
+	if mode == LINE:
+		cols = n
+	elif mode == COLUMN:
+		cols = 1
 	# order units: most-forward first, then left-to-right within each row
 	var by_fwd: PackedInt64Array = PackedInt64Array()
 	for k: int in range(n):
@@ -56,6 +67,12 @@ static func slots(world: SimWorld, ids: PackedInt32Array, x: int, y: int) -> Pac
 			var k: int = row[r] & 0xFFFFF
 			var lateral: int = (2 * r - (row_n - 1)) * spacing / 2
 			var back: int = row_idx * spacing
+			if mode == WEDGE:
+				# apex first, then alternating left / right and further back
+				var w_i: int = slot
+				var arm: int = (w_i + 1) / 2
+				lateral = arm * spacing * (1 if w_i % 2 == 1 else -1)
+				back = arm * spacing
 			var sx: int = x + (lateral * rx - back * fx) / FixedMath.ONE
 			var sy: int = y + (lateral * ry - back * fy) / FixedMath.ONE
 			var mob: int = world.def_of(ids[k]).mobility_class

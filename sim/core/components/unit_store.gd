@@ -39,6 +39,14 @@ var emcon: PackedInt32Array = PackedInt32Array()
 var link: PackedInt32Array = PackedInt32Array()
 ## Drones: ticks the control link has been down.
 var link_lost: PackedInt32Array = PackedInt32Array()
+## Transport carrying this unit (0 = on foot). Carried units are out of play:
+## not in team rosters, not spotted, not targetable, do not fire.
+var carrier: PackedInt32Array = PackedInt32Array()
+## Engagement range limit in mm (0 = weapon maximum).
+var engage_range: PackedInt32Array = PackedInt32Array()
+## Experience points and veterancy rank (0 Trained, 1 Veteran, 2 Elite).
+var xp: PackedInt32Array = PackedInt32Array()
+var rank: PackedInt32Array = PackedInt32Array()
 
 
 func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
@@ -62,6 +70,10 @@ func add(id: int, def: UnitStats, p_team: int, p_owner: int) -> void:
 	emcon[id] = EMCON_EMIT
 	link[id] = 0
 	link_lost[id] = 0
+	carrier[id] = 0
+	engage_range[id] = 0
+	xp[id] = 0
+	rank[id] = 0
 
 
 func _resize_columns(n: int) -> void:
@@ -83,11 +95,16 @@ func _resize_columns(n: int) -> void:
 	emcon.resize(n)
 	link.resize(n)
 	link_lost.resize(n)
+	carrier.resize(n)
+	engage_range.resize(n)
+	xp.resize(n)
+	rank.resize(n)
 
 
 func _cols() -> Array[PackedInt32Array]:
 	return [def_index, team, owner, hp, crew, damage, suppression, morale, members_alive,
-		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills, emcon, link, link_lost]
+		smoke_charges, stance, last_fired_tick, last_hit_tick, last_attacker, kills, emcon, link, link_lost,
+		carrier, engage_range, xp, rank]
 
 
 func hash_entity(id: int, h: Checksum) -> void:

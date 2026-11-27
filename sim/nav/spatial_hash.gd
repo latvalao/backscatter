@@ -27,7 +27,7 @@ func rebuild(world: SimWorld) -> void:
 	# insert in descending order so each bucket list reads ascending
 	for k: int in range(ids.size() - 1, -1, -1):
 		var id: int = ids[k]
-		if not t.has(id):
+		if not t.has(id) or (world.units.has(id) and world.units.carrier[id] != 0):
 			continue
 		var b: int = _bucket(t.x[id], t.y[id])
 		_next[id] = _head[b]

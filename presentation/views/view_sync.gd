@@ -21,20 +21,26 @@ var _views: Dictionary = {}   # entity id -> UnitView
 var _ghosts: Dictionary = {}  # entity id -> UnitView
 var _wrecks: Array[UnitView] = []
 var _track_from: Dictionary = {}  # id -> Vector3
+## Events drained this frame (for the alert feed and other readers).
+var last_events: Array[SimEvent] = []
+## Display names of units destroyed this frame, id -> [name, team, position].
+var lost: Dictionary = {}
 
 
 func _process(delta: float) -> void:
 	if runner == null or runner.world == null:
 		return
 	var w: SimWorld = runner.world
-	for e: SimEvent in w.drain_events():
+	last_events = w.drain_events()
+	lost.clear()
+	for e: SimEvent in last_events:
 		_on_event(w, e)
 	var layer: TeamVision = w.vision[local_team]
 	var terrain: TerrainView = effects.terrain if is_instance_valid(effects) else null
 	for id: int in _views.keys():
 		var v: UnitView = _views[id]
 		var own: bool = v.team == local_team
-		var vis: bool = reveal_all or own or layer.is_visible(id, w.tick)
+		var vis: bool = (reveal_all or own or layer.is_visible(id, w.tick)) and w.units.has(id) and w.units.carrier[id] == 0
 		v.visible = vis
 		if vis:
 			v.position = runner.interpolated_position(id)
@@ -170,6 +176,8 @@ func _spawn(w: SimWorld, id: int) -> void:
 func _destroyed(id: int) -> void:
 	var v: UnitView = _views.get(id, null)
 	var p: Vector3 = runner.curr_pos.get(id, Vector3.ZERO)
+	if v != null:
+		lost[id] = [v.def.display_name, v.team, p]
 	if is_instance_valid(effects):
 		effects.explosion(p, 3.0 if v == null or v.def.is_infantry else 5.0, false)
 	if v != null and not v.def.is_infantry and not v.def.is_air and is_instance_valid(effects) and (v.visible or reveal_all):

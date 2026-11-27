@@ -17,10 +17,10 @@ var _msg_timer: float = 0.0
 var _last_msg: String = ""
 var _ended: bool = false
 
-const HELP: String = "LMB select/box · RMB move / attack (on enemy) / rally (building) · Shift queue · Alt+RMB reverse\n" \
-	+ "A attack-move · R reverse · F fire mission · G smoke mission · X smoke launchers · S stop · H hold fire\n" \
-	+ "F1–F8 build/produce buttons · Ctrl+1-9 set group · 1-9 recall · arrows/edge/MMB pan · wheel zoom · Q/E rotate\n" \
-	+ "Z EMCON · Ctrl+RMB safe route · D dosimetry · V signals · P pause · +/- speed · F9 reveal · F10 labels · F12 replay · Esc"
+const HELP: String = "LMB select/box, double-click selects type  |  RMB move/attack/board, drag to set facing  |  Shift queue  |  Alt+RMB reverse\n" \
+	+ "A attack-move  R reverse  F fire mission  G smoke mission  X smoke  S stop  H hold fire  Y engage range (Shift+Y clear)\n" \
+	+ "U unload  T unload at point  N formation  Tab subgroup  . idle unit  Home HQ  Space last alert  L line of sight\n" \
+	+ "F1-F8 build/produce  Ctrl+1-9 group  Z EMCON  Ctrl+RMB safe route  D dosimetry  V signals  P pause  +/- speed  Esc menu"
 
 
 func _ready() -> void:
@@ -29,6 +29,7 @@ func _ready() -> void:
 	_card.anchor_top = 1.0
 	_card.anchor_bottom = 1.0
 	_card.offset_top = -230
+	_card.offset_left = 245
 	_help = _label(Vector2(0, 0), 13)
 	_help.anchor_left = 1.0
 	_help.anchor_right = 1.0
@@ -149,7 +150,7 @@ func _card_text(w: SimWorld) -> String:
 		var parts: PackedStringArray = PackedStringArray()
 		for n: String in names.keys():
 			parts.append("%d× %s" % [names[n], n])
-		return "%d selected: %s" % [sel.size(), ", ".join(parts)]
+		return "%d selected: %s\nformation: %s" % [sel.size(), ", ".join(parts), Formation.NAMES[controller.formation]]
 	var id: int = sel[0]
 	var d: UnitStats = w.def_of(id)
 	var u: UnitStore = w.units
@@ -169,6 +170,14 @@ func _card_text(w: SimWorld) -> String:
 		lines.append("hp %d/%d   armour F%d S%d R%d T%d   crew %s   damage %s" % [u.hp[id], d.hp,
 			d.armour_front, d.armour_side, d.armour_rear, d.armour_top, _crew(d, u.crew[id]), _damage(u.damage[id])])
 	var extra: String = ""
+	if Transport.capacity(d) > 0:
+		var pax: PackedInt32Array = Transport.passengers(w, id)
+		var pn: PackedStringArray = PackedStringArray()
+		for pid: int in pax:
+			pn.append(w.def_of(pid).display_name)
+		extra += "   carrying %s" % (", ".join(pn) if not pn.is_empty() else "nobody")
+	if u.engage_range[id] > 0:
+		extra += "   opens fire inside %d m" % (u.engage_range[id] / 1000)
 	if d.fuel_capacity > 0:
 		extra += "   fuel %d/%d L" % [w.logistics.fuel[id] / 1000, d.fuel_capacity / 1000]
 	if d.cargo_capacity > 0:
