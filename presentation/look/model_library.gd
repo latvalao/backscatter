@@ -10,7 +10,7 @@ const ROOT: String = "res://presentation/assets"
 const SHADER: String = "res://presentation/look/shaders/scale_model.gdshader"
 const FOLIAGE_SHADER: String = "res://presentation/look/shaders/foliage.gdshader"
 ## Units are drawn ~1.35x larger than buildings/trees for readability (§10).
-const UNIT_SCALE: float = 1.35
+const UNIT_SCALE: float = 1.7
 
 static var _scenes: Dictionary = {}
 static var _materials: Dictionary = {}

@@ -4,34 +4,65 @@
 class_name UiStyle
 extends RefCounted
 
-const BG: Color = Color(0.07, 0.08, 0.075, 0.86)
-const BG_SOFT: Color = Color(0.07, 0.08, 0.075, 0.62)
-const LINE: Color = Color(1.0, 1.0, 1.0, 0.09)
-const TEXT: Color = Color(0.9, 0.9, 0.86)
-const DIM: Color = Color(0.62, 0.64, 0.6)
+## Warm olive-black field panels, cream hairlines and type; no rounded glass.
+const BG: Color = Color(0.075, 0.078, 0.064, 0.9)
+const BG_SOFT: Color = Color(0.075, 0.078, 0.064, 0.66)
+const LINE: Color = Color(0.92, 0.88, 0.76, 0.16)
+const RULE: Color = Color(0.92, 0.88, 0.76, 0.4)
+const TEXT: Color = Color(0.92, 0.9, 0.82)
+const DIM: Color = Color(0.6, 0.6, 0.53)
 const AMBER: Color = Color("#E0B54A")
 const CYAN: Color = Color("#5FC7D1")
 const GOOD: Color = Color(0.55, 0.85, 0.5)
 const BAD: Color = Color(0.95, 0.42, 0.33)
-const OWN: Color = Color(0.24, 0.55, 0.88)
+const OWN: Color = Color(0.36, 0.6, 0.95)
+## Grease-pencil colours on the map: friendly blue, hostile red.
+const PENCIL_BLUE: Color = Color(0.3, 0.55, 1.0)
+const PENCIL_RED: Color = Color(0.95, 0.27, 0.2)
+const PENCIL_GREEN: Color = Color(0.4, 0.85, 0.45)
+const FONT_DIR: String = "res://presentation/ui/fonts/"
 const FONT_S: int = 12
 const FONT_M: int = 14
 const FONT_L: int = 18
 
 static var _theme: Theme
+static var _label_font: Font
+static var _mono_font: Font
+static var _label_bold: Font
+
+
+## Barlow Condensed: labels and headings (uppercase, spaced).
+static func label_font(bold: bool = false) -> Font:
+	if _label_font == null:
+		_label_font = _load("BarlowCondensed-Medium.ttf")
+		_label_bold = _load("BarlowCondensed-SemiBold.ttf")
+	return _label_bold if bold else _label_font
+
+
+## IBM Plex Mono: numbers, readouts, logs.
+static func mono_font() -> Font:
+	if _mono_font == null:
+		_mono_font = _load("IBMPlexMono-Medium.ttf")
+	return _mono_font
+
+
+static func _load(f: String) -> Font:
+	var ff: FontFile = load(FONT_DIR + f) as FontFile
+	return ff if ff != null else ThemeDB.fallback_font
 
 
 static func theme() -> Theme:
 	if _theme != null:
 		return _theme
 	var t: Theme = Theme.new()
-	t.default_font_size = FONT_M
+	t.default_font = label_font()
+	t.default_font_size = FONT_M + 1
 	t.set_color("font_color", "Label", TEXT)
 	t.set_stylebox("panel", "PanelContainer", panel_box())
-	var normal: StyleBoxFlat = _box(Color(0.16, 0.17, 0.16, 0.95), Color(1, 1, 1, 0.1))
-	var hover: StyleBoxFlat = _box(Color(0.24, 0.25, 0.23, 0.98), Color(1, 1, 1, 0.22))
-	var pressed: StyleBoxFlat = _box(Color(0.3, 0.27, 0.16, 1.0), AMBER)
-	var disabled: StyleBoxFlat = _box(Color(0.11, 0.11, 0.11, 0.8), Color(1, 1, 1, 0.04))
+	var normal: StyleBoxFlat = _box(Color(0.12, 0.125, 0.1, 0.92), LINE)
+	var hover: StyleBoxFlat = _box(Color(0.17, 0.17, 0.13, 0.96), RULE)
+	var pressed: StyleBoxFlat = _box(Color(0.28, 0.23, 0.11, 1.0), AMBER)
+	var disabled: StyleBoxFlat = _box(Color(0.09, 0.09, 0.08, 0.8), Color(1, 1, 1, 0.03))
 	for cls: String in ["Button", "OptionButton"]:
 		t.set_stylebox("normal", cls, normal)
 		t.set_stylebox("hover", cls, hover)
@@ -54,7 +85,7 @@ static func _box(bg: Color, border: Color) -> StyleBoxFlat:
 	s.bg_color = bg
 	s.border_color = border
 	s.set_border_width_all(1)
-	s.set_corner_radius_all(3)
+	s.set_corner_radius_all(0)
 	s.content_margin_left = 8
 	s.content_margin_right = 8
 	s.content_margin_top = 4
@@ -64,6 +95,10 @@ static func _box(bg: Color, border: Color) -> StyleBoxFlat:
 
 static func panel_box() -> StyleBoxFlat:
 	var s: StyleBoxFlat = _box(BG, LINE)
+	s.border_width_left = 0
+	s.border_width_right = 0
+	s.border_width_bottom = 0
+	s.border_color = RULE
 	s.content_margin_left = 10
 	s.content_margin_right = 10
 	s.content_margin_top = 8
@@ -84,9 +119,10 @@ static func theme_layer(layer: CanvasLayer) -> void:
 			c2.theme = theme()
 
 
-static func label(text: String, size: int = FONT_M, color: Color = TEXT) -> Label:
+static func label(text: String, size: int = FONT_M, color: Color = TEXT, mono: bool = false) -> Label:
 	var l: Label = Label.new()
 	l.text = text
+	l.add_theme_font_override("font", mono_font() if mono else label_font())
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	return l
@@ -108,12 +144,32 @@ static func health_color(f: float) -> Color:
 	return BAD
 
 
-static func text(ci: CanvasItem, p: Vector2, s: String, size: int = FONT_M, c: Color = TEXT, shadow: bool = true) -> void:
-	var font: Font = ThemeDB.fallback_font
+static func text(ci: CanvasItem, p: Vector2, s: String, size: int = FONT_M, c: Color = TEXT, shadow: bool = true, mono: bool = false) -> void:
+	var font: Font = mono_font() if mono else label_font()
+	if not mono:
+		size += 1
 	if shadow:
 		ci.draw_string(font, p + Vector2(1, 1), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(0, 0, 0, 0.7 * c.a))
 	ci.draw_string(font, p, s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
 
 
-static func text_width(s: String, size: int) -> float:
-	return ThemeDB.fallback_font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+static func text_width(s: String, size: int, mono: bool = false) -> float:
+	var f: Font = mono_font() if mono else label_font()
+	return f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size if mono else size + 1).x
+
+
+## Section heading: uppercase condensed label with a hairline rule after it.
+static func heading(ci: CanvasItem, p: Vector2, s: String, width: float, c: Color = DIM) -> void:
+	var t: String = s.to_upper()
+	ci.draw_string(label_font(true), p, t, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_S + 1, c)
+	var w: float = label_font(true).get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_S + 1).x
+	ci.draw_line(Vector2(p.x + w + 8, p.y - 4), Vector2(p.x + width, p.y - 4), LINE, 1.0)
+
+
+## Corner registration ticks (map-sheet style) around a rect.
+static func ticks(ci: CanvasItem, r: Rect2, c: Color = RULE, len: float = 7.0) -> void:
+	for corner: Vector2 in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+		var sx: float = 1.0 if corner.x == r.position.x else -1.0
+		var sy: float = 1.0 if corner.y == r.position.y else -1.0
+		ci.draw_line(corner, corner + Vector2(sx * len, 0), c, 1.0)
+		ci.draw_line(corner, corner + Vector2(0, sy * len), c, 1.0)

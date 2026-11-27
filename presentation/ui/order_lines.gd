@@ -5,17 +5,19 @@
 class_name OrderLines
 extends Node3D
 
+## Grease pencil on acetate: blue for movement, red for anything offensive,
+## green for embarking / unloading, amber for engineer work.
 const COLORS: Dictionary = {
-	OrderStore.MOVE: Color(0.55, 0.95, 0.55, 0.85),
-	OrderStore.ATTACK_MOVE: Color(1.0, 0.5, 0.12, 0.9),
-	OrderStore.ATTACK: Color(1.0, 0.33, 0.27, 0.9),
-	OrderStore.FIRE_MISSION: Color(0.88, 0.71, 0.29, 0.9),
-	OrderStore.RETREAT: Color(0.7, 0.7, 0.7, 0.7),
-	OrderStore.BUILD: Color(0.95, 0.88, 0.4, 0.8),
-	OrderStore.MOUNT: Color(0.37, 0.78, 0.82, 0.9),
+	OrderStore.MOVE: Color(0.3, 0.55, 1.0, 0.92),
+	OrderStore.ATTACK_MOVE: Color(0.95, 0.27, 0.2, 0.92),
+	OrderStore.ATTACK: Color(0.95, 0.27, 0.2, 0.95),
+	OrderStore.FIRE_MISSION: Color(0.95, 0.27, 0.2, 0.95),
+	OrderStore.RETREAT: Color(0.75, 0.75, 0.7, 0.8),
+	OrderStore.BUILD: Color(0.88, 0.71, 0.29, 0.9),
+	OrderStore.MOUNT: Color(0.4, 0.85, 0.45, 0.92),
 }
-const REVERSE_COLOR: Color = Color(0.55, 0.75, 1.0, 0.85)
-const UNLOAD_COLOR: Color = Color(0.37, 0.78, 0.82, 0.9)
+const REVERSE_COLOR: Color = Color(0.3, 0.55, 1.0, 0.75)
+const UNLOAD_COLOR: Color = Color(0.4, 0.85, 0.45, 0.92)
 const PING_S: float = 0.7
 const MAX_UNITS: int = 60
 
@@ -136,8 +138,10 @@ func _unit(w: SimWorld, id: int) -> void:
 					_segment(cur, p, col)
 					cur = p
 			_segment(cur, goal, col)
+		_head(cur, goal, col)
 		cur = goal
-		_marker(goal, col, (o.flags[id] & OrderStore.FLAG_UNLOAD) != 0)
+		if (o.flags[id] & OrderStore.FLAG_UNLOAD) != 0:
+			_marker(goal, col, true)
 		if o.queue_len(id) == 0 and w.mobility.face[id] >= 0:
 			_arrow(goal, w.mobility.face[id], col)
 	var q: PackedInt64Array = o.queue.get(id, PackedInt64Array())
@@ -146,7 +150,9 @@ func _unit(w: SimWorld, id: int) -> void:
 		qc.a *= 0.7
 		var qp: Vector3 = SimRunner.sim_to_view(q[i + 2], q[i + 3], 0)
 		_dashed(cur, qp, qc)
-		_marker(qp, qc, (int(q[i + 1]) & OrderStore.FLAG_UNLOAD) != 0)
+		_head(cur, qp, qc)
+		if (int(q[i + 1]) & OrderStore.FLAG_UNLOAD) != 0:
+			_marker(qp, qc, true)
 		cur = qp
 
 
@@ -168,6 +174,30 @@ func _v(p: Vector3, c: Color) -> void:
 
 
 func _quad(a: Vector3, b: Vector3, c: Color, width: float) -> void:
+	var d: Vector3 = b - a
+	d.y = 0.0
+	if d.length_squared() < 0.0001:
+		return
+	var n: Vector3 = Vector3(-d.z, 0.0, d.x).normalized()
+	# hand-drawn stroke: slight wander and pressure changes along the line
+	var wa: float = width * (0.85 + 0.3 * sin(a.x * 0.11 + a.z * 0.07))
+	var wb: float = width * (0.85 + 0.3 * sin(b.x * 0.11 + b.z * 0.07))
+	var oa: Vector3 = n * (sin(a.x * 0.045 - a.z * 0.06) * width * 0.35)
+	var ob: Vector3 = n * (sin(b.x * 0.045 - b.z * 0.06) * width * 0.35)
+	var a1: Vector3 = _ground(a) + oa
+	var b1: Vector3 = _ground(b) + ob
+	var sa: Vector3 = n * wa * 0.5
+	var sb: Vector3 = n * wb * 0.5
+	_v(a1 - sa, c)
+	_v(a1 + sa, c)
+	_v(b1 + sb, c)
+	_v(a1 - sa, c)
+	_v(b1 + sb, c)
+	_v(b1 - sb, c)
+	_tris += 2
+
+
+func _quad_flat(a: Vector3, b: Vector3, c: Color, width: float) -> void:
 	var d: Vector3 = b - a
 	d.y = 0.0
 	if d.length_squared() < 0.0001:
@@ -216,6 +246,19 @@ func _marker(p: Vector3, c: Color, square: bool) -> void:
 		pts.append(p + Vector3(cos(a) * r, 0, sin(a) * r))
 	for i2: int in range(4):
 		_quad(pts[i2], pts[(i2 + 1) % 4], c, _w * 0.7)
+
+
+## Grease-pencil arrowhead at the end of a leg (direction from `from`).
+func _head(from: Vector3, to: Vector3, c: Color) -> void:
+	var d: Vector3 = to - from
+	d.y = 0.0
+	if d.length() < 1.0:
+		return
+	d = d.normalized()
+	var sz: float = maxf(5.0, _w * 3.2)
+	var side: Vector3 = Vector3(-d.z, 0, d.x)
+	_quad(to, to - d * sz + side * sz * 0.6, c, _w)
+	_quad(to, to - d * sz - side * sz * 0.6, c, _w)
 
 
 ## Final facing set with a right-drag.

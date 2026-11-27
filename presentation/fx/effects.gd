@@ -23,6 +23,9 @@ var _light_t: PackedFloat32Array = PackedFloat32Array()
 var _smoke_nodes: Array[GPUParticles3D] = []
 var _wreck_fx: Array[Dictionary] = []  # {fire, light, t}
 var _soft: GradientTexture2D
+static var _puff: ImageTexture
+static var _dust_pm: ParticleProcessMaterial
+static var _dust_mesh: QuadMesh
 var _flash_mat: StandardMaterial3D
 var _smoke_screen_mat: ParticleProcessMaterial
 var _column_mat: ParticleProcessMaterial
@@ -109,15 +112,85 @@ func _smoke_process(gravity: Vector3, vel: float, grow: float, col: Color) -> Pa
 	return pm
 
 
-func _sprite_mesh(size: float, lit: bool, additive: bool = false) -> QuadMesh:
+## Cloudy smoke puff: radial falloff broken up by noise (generated once).
+static func puff_texture() -> ImageTexture:
+	if _puff == null:
+		var n: FastNoiseLite = FastNoiseLite.new()
+		n.frequency = 0.06
+		n.fractal_octaves = 4
+		var img: Image = Image.create(128, 128, false, Image.FORMAT_RGBA8)
+		for y: int in range(128):
+			for x: int in range(128):
+				var d: float = Vector2(x - 63.5, y - 63.5).length() / 64.0
+				var v: float = n.get_noise_2d(x, y) * 0.5 + 0.5
+				var a: float = clampf((1.0 - d * d) * (0.55 + 0.75 * v) - 0.08, 0.0, 1.0)
+				var shade: float = 0.78 + 0.22 * v
+				img.set_pixel(x, y, Color(shade, shade, shade, a))
+		_puff = ImageTexture.create_from_image(img)
+	return _puff
+
+
+## A dust trail for a moving vehicle (attached by UnitView).
+static func make_dust_trail(size_m: float) -> GPUParticles3D:
+	if _dust_pm == null:
+		_dust_pm = ParticleProcessMaterial.new()
+		_dust_pm.direction = Vector3(0, 1, 0)
+		_dust_pm.spread = 60.0
+		_dust_pm.initial_velocity_min = 0.5
+		_dust_pm.initial_velocity_max = 1.6
+		_dust_pm.gravity = Vector3(0, 0.25, 0)
+		_dust_pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		_dust_pm.emission_box_extents = Vector3(1.5, 0.2, 0.5)
+		var curve: Curve = Curve.new()
+		curve.add_point(Vector2(0, 0.5))
+		curve.add_point(Vector2(1, 2.4))
+		var ct: CurveTexture = CurveTexture.new()
+		ct.curve = curve
+		_dust_pm.scale_curve = ct
+		var g: Gradient = Gradient.new()
+		g.set_color(0, Color(0.55, 0.5, 0.4, 0.0))
+		g.add_point(0.2, Color(0.55, 0.5, 0.4, 0.45))
+		g.set_color(g.get_point_count() - 1, Color(0.55, 0.5, 0.4, 0.0))
+		var gt: GradientTexture1D = GradientTexture1D.new()
+		gt.gradient = g
+		_dust_pm.color_ramp = gt
+		_dust_pm.angle_max = 360.0
+		_dust_mesh = QuadMesh.new()
+		_dust_mesh.size = Vector2(3.2, 3.2)
+		var m: StandardMaterial3D = StandardMaterial3D.new()
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		m.vertex_color_use_as_albedo = true
+		m.albedo_texture = puff_texture()
+		m.disable_receive_shadows = true
+		_dust_mesh.material = m
+	var p: GPUParticles3D = GPUParticles3D.new()
+	p.amount = 18
+	p.lifetime = 2.6
+	p.local_coords = false
+	p.process_material = _dust_pm
+	p.draw_pass_1 = _dust_mesh
+	p.scale = Vector3.ONE * clampf(size_m / 3.0, 0.7, 1.6)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	p.emitting = false
+	return p
+
+
+func _sprite_mesh(size: float, lit: bool, additive: bool = false, puffy: bool = false) -> QuadMesh:
 	var q: QuadMesh = QuadMesh.new()
 	q.size = Vector2(size, size)
 	var m: StandardMaterial3D = StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.vertex_color_use_as_albedo = true
-	m.albedo_texture = _soft
+	m.albedo_texture = puff_texture() if puffy else _soft
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL if lit else BaseMaterial3D.SHADING_MODE_UNSHADED
+	if lit:
+		# sun-lit smoke: no blue sky ambient, a little self-light so the shadow side isn't black
+		m.disable_ambient_light = true
+		m.emission_enabled = true
+		m.emission = Color(0.16, 0.15, 0.14)
+		m.roughness = 1.0
 	if additive:
 		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	m.disable_receive_shadows = true
@@ -172,26 +245,86 @@ func muzzle_flash(p: Vector3, big: bool) -> void:
 	_light(p, 6.0 if big else 2.5, 18.0 if big else 8.0, 0.08, Color(1.0, 0.72, 0.4))
 	if big:
 		_dust(p - Vector3(0, 1.5, 0), 2.0, Color(0.55, 0.5, 0.42), 10)
+		_dust(p, 0.8, Color(0.75, 0.74, 0.72), 5)  # muzzle smoke
 
 
-## Shell / rocket impact: flash, dirt plume, lingering dust; craters for artillery.
+## Shell / rocket impact: flash and light, a fireball, thrown dirt and debris,
+## a rolling smoke billow that drifts with the wind, and a crater for artillery.
 func explosion(p: Vector3, size_m: float, crater: bool) -> void:
 	muzzle_flash(p + Vector3.UP * size_m * 0.3, size_m > 2.5)
-	_light(p + Vector3.UP * 2.0, 8.0 * size_m * 0.4, size_m * 6.0, 0.2, Color(1.0, 0.6, 0.3))
+	_light(p + Vector3.UP * 2.0, 8.0 * size_m * 0.4, size_m * 7.0, 0.25, Color(1.0, 0.6, 0.3))
+	var k: float = clampf(sqrt(size_m) * 0.75, 0.6, 2.2)
+	# fireball
+	var fb: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	fb.direction = Vector3(0, 1, 0)
+	fb.spread = 70.0
+	fb.initial_velocity_min = 2.0 * k
+	fb.initial_velocity_max = 6.0 * k
+	fb.gravity = Vector3(0, 3, 0)
+	fb.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	fb.emission_sphere_radius = size_m * 0.3
+	var fg: Gradient = Gradient.new()
+	fg.set_color(0, Color(3.2, 2.0, 0.8, 1.0))
+	fg.add_point(0.35, Color(1.6, 0.5, 0.12, 0.8))
+	fg.set_color(fg.get_point_count() - 1, Color(0.1, 0.08, 0.07, 0.0))
+	var fgt: GradientTexture1D = GradientTexture1D.new()
+	fgt.gradient = fg
+	fb.color_ramp = fgt
+	var fc: Curve = Curve.new()
+	fc.add_point(Vector2(0, 0.6))
+	fc.add_point(Vector2(1, 1.8))
+	var fct: CurveTexture = CurveTexture.new()
+	fct.curve = fc
+	fb.scale_curve = fct
+	fb.angle_max = 360.0
+	var fire: GPUParticles3D = _particles(int(clampf(size_m * 4.0, 6, 24)), 0.7, fb, _sprite_mesh(2.4 * k, false, true, true), true)
+	fire.position = p + Vector3.UP * 0.8
+	add_child(fire)
+	_transients.append({"node": fire, "t": 1.2, "kind": "free", "size": 0.0})
+	# thrown dirt
 	var pm: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	pm.direction = Vector3(0, 1, 0)
-	pm.spread = 25.0
-	pm.initial_velocity_min = 6.0 * sqrt(size_m)
-	pm.initial_velocity_max = 13.0 * sqrt(size_m)
-	pm.gravity = Vector3(0, -14, 0)
-	pm.color = Color(0.22, 0.18, 0.13)
-	pm.scale_min = 0.6
-	pm.scale_max = 1.4
-	var dirt: GPUParticles3D = _particles(int(clampf(size_m * 10.0, 8, 48)), 1.4, pm, _sprite_mesh(0.9 * sqrt(size_m), true), true)
+	pm.spread = 28.0
+	pm.initial_velocity_min = 4.0 * k
+	pm.initial_velocity_max = 8.0 * k
+	pm.gravity = Vector3(0, -16, 0)
+	pm.color = Color(0.36, 0.3, 0.22)
+	pm.scale_min = 0.8
+	pm.scale_max = 1.8
+	pm.angle_max = 360.0
+	var dg: Gradient = Gradient.new()
+	dg.set_color(0, Color(0.36, 0.3, 0.22, 1.0))
+	dg.set_color(1, Color(0.36, 0.3, 0.22, 0.0))
+	var dgt: GradientTexture1D = GradientTexture1D.new()
+	dgt.gradient = dg
+	pm.color_ramp = dgt
+	var dirt: GPUParticles3D = _particles(int(clampf(size_m * 5.0, 8, 30)), 1.2, pm, _sprite_mesh(2.2 * k, true, false, true), true)
 	dirt.position = p
 	add_child(dirt)
 	_transients.append({"node": dirt, "t": 2.0, "kind": "free", "size": 0.0})
-	_dust(p, size_m, Color(0.5, 0.46, 0.4), int(clampf(size_m * 4.0, 4, 20)))
+	# debris chunks
+	var db: ParticleProcessMaterial = ParticleProcessMaterial.new()
+	db.direction = Vector3(0, 1, 0)
+	db.spread = 55.0
+	db.initial_velocity_min = 4.0 * k
+	db.initial_velocity_max = 9.0 * k
+	db.gravity = Vector3(0, -18, 0)
+	db.angular_velocity_min = -400.0
+	db.angular_velocity_max = 400.0
+	db.scale_min = 0.5
+	db.scale_max = 1.3
+	db.color = Color(0.12, 0.1, 0.08)
+	var chunk: BoxMesh = BoxMesh.new()
+	chunk.size = Vector3(0.35, 0.25, 0.3) * k
+	var cm: StandardMaterial3D = StandardMaterial3D.new()
+	cm.albedo_color = Color(0.15, 0.12, 0.1)
+	chunk.material = cm
+	var deb: GPUParticles3D = _particles(int(clampf(size_m * 3.0, 4, 18)), 2.2, db, chunk, true)
+	deb.position = p + Vector3.UP * 0.5
+	add_child(deb)
+	_transients.append({"node": deb, "t": 2.6, "kind": "free", "size": 0.0})
+	# rolling smoke billow
+	_dust(p + Vector3.UP * size_m * 0.4, size_m * 1.3, Color(0.28, 0.27, 0.25), int(clampf(size_m * 5.0, 6, 28)))
 	if crater and terrain != null and size_m >= 1.5:
 		terrain.stamp_crater(p, size_m * 0.9, 0.45)
 
@@ -200,10 +333,11 @@ func _dust(p: Vector3, size_m: float, col: Color, n: int) -> void:
 	var pm: ParticleProcessMaterial = _smoke_process(Vector3(0, 0.4, 0), 2.0 * sqrt(size_m), 2.4, col)
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	pm.emission_sphere_radius = size_m * 0.6
-	var d: GPUParticles3D = _particles(n, 4.5, pm, _sprite_mesh(2.2 * sqrt(size_m), true), true)
+	pm.gravity = Vector3(LookDirector.wind.x * 0.4, 0.9, LookDirector.wind.y * 0.4)
+	var d: GPUParticles3D = _particles(n, 8.0, pm, _sprite_mesh(3.2 * sqrt(size_m), true, false, true), true)
 	d.position = p + Vector3.UP
 	add_child(d)
-	_transients.append({"node": d, "t": 5.0, "kind": "free", "size": 0.0})
+	_transients.append({"node": d, "t": 8.5, "kind": "free", "size": 0.0})
 
 
 ## Parachute illumination flare: a bright light drifting down for `life_s`.
@@ -244,7 +378,7 @@ func attach_wreck_fire(v: Node3D, large: bool) -> void:
 	var fire: GPUParticles3D = _particles(24, 0.8, fire_pm, _sprite_mesh(1.6, false, true), false)
 	fire.position = Vector3(0, 2.0, 0)
 	v.add_child(fire)
-	var smoke: GPUParticles3D = _particles(28 if large else 18, 9.0, _column_mat, _sprite_mesh(3.5, true), false)
+	var smoke: GPUParticles3D = _particles(36 if large else 22, 11.0, _column_mat, _sprite_mesh(5.0 if large else 3.8, true, false, true), false)
 	smoke.position = Vector3(0, 2.5, 0)
 	v.add_child(smoke)
 	var light: OmniLight3D = null
@@ -439,7 +573,7 @@ func _sync_smoke(w: SimWorld) -> void:
 	while _smoke_nodes.size() < s.count():
 		var pm: ParticleProcessMaterial = _smoke_screen_mat.duplicate() as ParticleProcessMaterial
 		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		var gp: GPUParticles3D = _particles(36, 7.0, pm, _sprite_mesh(9.0, true), false)
+		var gp: GPUParticles3D = _particles(44, 8.0, pm, _sprite_mesh(12.0, true, false, true), false)
 		add_child(gp)
 		_smoke_nodes.append(gp)
 	while _smoke_nodes.size() > s.count():

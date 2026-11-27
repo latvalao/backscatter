@@ -63,8 +63,18 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _tex == null:
 		return
-	draw_rect(Rect2(Vector2(-2, -2), Vector2(SIZE_PX + 4, SIZE_PX + 4)), Color(0, 0, 0, 0.7))
-	draw_texture_rect(_tex, Rect2(Vector2.ZERO, Vector2(SIZE_PX, SIZE_PX)), false)
+	draw_rect(Rect2(Vector2(-14, -14), Vector2(SIZE_PX + 16, SIZE_PX + 16)), UiStyle.BG)
+	draw_texture_rect(_tex, Rect2(Vector2.ZERO, Vector2(SIZE_PX, SIZE_PX)), false, Color(0.92, 0.92, 0.86))
+	# map-sheet grid: lettered columns, numbered rows
+	for i: int in range(1, 8):
+		var g: float = SIZE_PX * i / 8.0
+		draw_line(Vector2(g, 0), Vector2(g, SIZE_PX), Color(0, 0, 0, 0.18), 1.0)
+		draw_line(Vector2(0, g), Vector2(SIZE_PX, g), Color(0, 0, 0, 0.18), 1.0)
+	for j: int in range(8):
+		var c: float = SIZE_PX * (j + 0.5) / 8.0
+		UiStyle.text(self, Vector2(c - 3, -3), "ABCDEFGH"[j], UiStyle.FONT_S - 3, UiStyle.DIM, false, true)
+		UiStyle.text(self, Vector2(-11, c + 4), str(8 - j), UiStyle.FONT_S - 3, UiStyle.DIM, false, true)
+	UiStyle.ticks(self, Rect2(Vector2.ZERO, Vector2(SIZE_PX, SIZE_PX)))
 	var w: SimWorld = runner.world
 	var team: int = views.local_team
 	var layer: TeamVision = w.vision[team]

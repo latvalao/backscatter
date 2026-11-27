@@ -118,7 +118,19 @@ func _process(_d: float) -> bool:
 		post.position = p
 		post.rotation.y = 0.4
 		_scene.add_child(post)
-	if _out != "" and _frame >= _frames:
+	if _frame == 20 and OS.get_cmdline_user_args().has("--boom"):
+		var fx: Effects = _scene.views.effects
+		for k: int in range(4):
+			var bp: Vector3 = Vector3((26 + k * 4) * 8.0, 0, -(34 + (k % 2) * 3) * 8.0)
+			bp.y = _scene.terrain_view().height_at(bp)
+			fx.explosion(bp, 5.0 + k, true)
+		var w: SimWorld = _scene.runner.world
+		for id: int in w.entities.ids():
+			if w.units.has(id) and w.def_of(id).id == "ec_ifv_2":
+				var v: UnitView = _scene.views.view_of(id)
+				if v != null:
+					v.make_wreck(fx)
+	if _out != "" and _frame >= _frames + (4 if OS.get_cmdline_user_args().has("--boom") else 0):
 		root.get_viewport().get_texture().get_image().save_png(_out)
 		print("saved " + _out)
 		quit(0)

@@ -4,14 +4,14 @@
 
 [resource]
 script = ExtResource("1")
-sun_elevation_deg = 45
+sun_elevation_deg = 38
 sun_azimuth_deg = 200
-sun_color = Color(0.9, 0.92, 0.95, 1)
-sun_energy = 0.55
+sun_color = Color(1, 0.95, 0.86, 1)
+sun_energy = 0.95
 sky_top = Color(0.66, 0.71, 0.74, 1)
 sky_horizon = Color(0.76, 0.79, 0.8, 1)
 ground_color = Color(0.3, 0.31, 0.29, 1)
-ambient_energy = 1.05
+ambient_energy = 0.8
 fog_color = Color(0.72, 0.76, 0.77, 1)
 fog_density = 0.00024
 fog_sun_scatter = 0.0
@@ -19,9 +19,9 @@ volumetric_density = 0.003
 bog_mist = 0.25
 exposure = 1.05
 glow = 0.15
-grade_shadows = Color(0.94, 0.98, 1.05, 1)
-grade_highlights = Color(1.02, 1.0, 0.97, 1)
-saturation = 0.88
-contrast = 1.02
+grade_shadows = Color(0.88, 0.96, 1.06, 1)
+grade_highlights = Color(1.06, 1.0, 0.92, 1)
+saturation = 0.95
+contrast = 1.12
 grain = 0.03
-vignette = 0.2
+vignette = 0.28

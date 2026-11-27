@@ -47,51 +47,54 @@ func _draw() -> void:
 		var t: String = controller.mode_text()
 		var wdt: float = UiStyle.text_width(t, UiStyle.FONT_S) + 14.0
 		draw_rect(Rect2(m + Vector2(18, 14), Vector2(wdt, 20)), UiStyle.BG)
-		UiStyle.text(self, m + Vector2(25, 29), t, UiStyle.FONT_S, UiStyle.AMBER, false)
+		draw_rect(Rect2(m + Vector2(18, 14), Vector2(2, 20)), UiStyle.AMBER)
+		UiStyle.text(self, m + Vector2(25, 29), t.to_upper(), UiStyle.FONT_S, UiStyle.AMBER, false)
 
 
+## NATO symbol above every unit, status bar under it, tags beside it. Up close
+## the symbol fades out unless the unit is selected, hurt or in trouble.
 func _unit(w: SimWorld, uv: UnitView, sp: Vector2, far: bool) -> void:
 	var id: int = uv.entity_id
 	var u: UnitStore = w.units
 	var own: bool = uv.team == views.local_team
 	var sel: bool = views.selected.has(id)
-	if not uv.is_identified():
-		UiStyle.text(self, sp + Vector2(-6, 0), "?", UiStyle.FONT_M, UiStyle.BAD)
-		if not far:
-			UiStyle.text(self, sp + Vector2(6, 0), uv.contact_class(), UiStyle.FONT_S, Color(1, 0.75, 0.6, 0.85))
-		return
+	var known: bool = uv.is_identified()
 	var f: float = _health(w, uv)
 	var routing: bool = u.rout_until[id] > w.tick
 	var pinned: bool = u.suppression[id] >= MoraleSystem.PIN_THRESHOLD
-	var show: bool = sel or f < 0.999 or routing or pinned
-	if not show and (far or u.rank[id] == 0):
+	var close: float = clampf((controller.cam.distance - 140.0) / 220.0, 0.0, 1.0)
+	var alpha: float = maxf(close, 1.0 if (sel or f < 0.999 or routing or pinned or not known) else 0.0)
+	if alpha <= 0.02:
 		return
-	var x: float = sp.x - BAR_W * 0.5
-	if show:
-		UiStyle.bar(self, Rect2(x, sp.y, BAR_W, 4), f, UiStyle.health_color(f) if own else UiStyle.BAD.lightened(0.15))
-		if u.suppression[id] > 0:
-			UiStyle.bar(self, Rect2(x, sp.y + 5, BAR_W, 2), u.suppression[id] / 1000.0, UiStyle.AMBER, Color(0, 0, 0, 0.35))
-	# veterancy chevrons left of the bar
+	var c: Vector2 = sp + Vector2(0, -10)
+	NatoSymbol.draw(self, c, uv.def, own, known, alpha, sel)
+	if not known:
+		return
+	var x: float = c.x - NatoSymbol.W * 0.5
+	var by: float = c.y + NatoSymbol.H * 0.5 + 3.0
+	if own or f < 0.999:
+		UiStyle.bar(self, Rect2(x, by, NatoSymbol.W, 3), f, UiStyle.health_color(f) if own else UiStyle.PENCIL_RED, Color(0, 0, 0, 0.55 * alpha))
+	if u.suppression[id] > 0:
+		UiStyle.bar(self, Rect2(x, by + 4, NatoSymbol.W, 2), u.suppression[id] / 1000.0, UiStyle.AMBER, Color(0, 0, 0, 0.3 * alpha))
+	# veterancy: small chevrons above the frame
 	for r: int in range(u.rank[id]):
-		var cx: float = x - 6.0 - r * 6.0
-		draw_polyline(PackedVector2Array([Vector2(cx - 3, sp.y - 1), Vector2(cx, sp.y + 3), Vector2(cx + 3, sp.y - 1)]), UiStyle.AMBER, 1.5)
+		var cx: float = c.x - 4.0 + r * 8.0
+		var cy: float = c.y - NatoSymbol.H * 0.5 - 4.0
+		draw_polyline(PackedVector2Array([Vector2(cx - 3, cy - 2), Vector2(cx, cy + 1), Vector2(cx + 3, cy - 2)]), UiStyle.AMBER, 1.5)
 	var tag: String = ""
 	var tc: Color = UiStyle.AMBER
 	if routing:
-		tag = "ROUTING"
+		tag = "ROUT"
 		tc = UiStyle.BAD
 	elif pinned:
-		tag = "PINNED"
-	elif uv.def.is_infantry and FieldSystem.dug_in_bonus(w, id) > 0 and sel:
-		tag = "DUG IN"
-		tc = UiStyle.DIM
-	if Transport.capacity(uv.def) > 0 and sel:
+		tag = "PIN"
+	if Transport.capacity(uv.def) > 0 and own:
 		var pax: int = Transport.passengers(w, id).size()
 		if pax > 0:
-			tag = ("%s  " % tag if tag != "" else "") + "+%d squad%s" % [pax, "" if pax == 1 else "s"]
+			tag = ("%s " % tag if tag != "" else "") + "+%d" % pax
 			tc = UiStyle.CYAN if not routing and not pinned else tc
 	if tag != "":
-		UiStyle.text(self, Vector2(x, sp.y - 4), tag, UiStyle.FONT_S - 1, tc)
+		UiStyle.text(self, Vector2(c.x + NatoSymbol.W * 0.5 + 4, c.y + 4), tag, UiStyle.FONT_S - 1, Color(tc.r, tc.g, tc.b, alpha), true, true)
 
 
 func _health(w: SimWorld, uv: UnitView) -> float:

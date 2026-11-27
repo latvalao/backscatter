@@ -40,7 +40,11 @@ func push(text: String, color: Color, pos: Variant, key: String = "") -> void:
 		if _clock - float(_last.get(k, -1000.0)) < THROTTLE_S:
 			return
 		_last[k] = _clock
-	_items.push_front({"text": text, "color": color, "t": LIFE_S, "pos": pos})
+	var tag: String = {"hit": "ATTACK", "base": "BASE", "fuel": "FUEL", "rad": "DOSE", "prod": "READY", "rout": "MORALE", "mine": "MINE"}.get(key, "")
+	if tag == "":
+		tag = "LOST" if text.begins_with("Lost") else ("DEPOT" if text.contains("Depot") else "INFO")
+	var tk: int = runner.world.tick if runner != null and runner.world != null else 0
+	_items.push_front({"text": text, "color": color, "t": LIFE_S, "pos": pos, "tag": tag, "time": "%02d:%02d" % [tk / 600, (tk / 10) % 60]})
 	if _items.size() > MAX_SHOWN:
 		_items.pop_back()
 	if pos != null:
@@ -114,17 +118,20 @@ func _event(w: SimWorld, e: SimEvent, team: int) -> void:
 				push("Mine strike", Color(1.0, 0.5, 0.3), pos, "mine")
 
 
+## Teletype log: time, category, message; newest on top, older lines fade.
 func _draw() -> void:
+	if _items.is_empty():
+		return
 	var y: float = 46.0
+	var h: float = 21.0
+	var width: float = 430.0
+	draw_rect(Rect2(10, y, width, _items.size() * h + 8.0), UiStyle.BG_SOFT)
+	draw_line(Vector2(10, y), Vector2(10 + width, y), UiStyle.RULE, 1.0)
+	y += 4.0
 	for it: Dictionary in _items:
 		var a: float = clampf(float(it["t"]) / 1.5, 0.0, 1.0)
 		var c: Color = it["color"]
-		c.a = a
-		var t: String = str(it["text"])
-		var wdt: float = UiStyle.text_width(t, UiStyle.FONT_M) + 22.0
-		var bg: Color = UiStyle.BG_SOFT
-		bg.a *= a
-		draw_rect(Rect2(10, y, wdt, 22), bg)
-		draw_rect(Rect2(10, y, 3, 22), c)
-		UiStyle.text(self, Vector2(20, y + 16), t, UiStyle.FONT_M, Color(UiStyle.TEXT.r, UiStyle.TEXT.g, UiStyle.TEXT.b, a), false)
-		y += 25.0
+		UiStyle.text(self, Vector2(18, y + 15), str(it["time"]), UiStyle.FONT_S, Color(UiStyle.DIM.r, UiStyle.DIM.g, UiStyle.DIM.b, a), false, true)
+		UiStyle.text(self, Vector2(64, y + 15), str(it["tag"]), UiStyle.FONT_S, Color(c.r, c.g, c.b, a), false, true)
+		UiStyle.text(self, Vector2(124, y + 15), str(it["text"]), UiStyle.FONT_M, Color(UiStyle.TEXT.r, UiStyle.TEXT.g, UiStyle.TEXT.b, a), false)
+		y += h

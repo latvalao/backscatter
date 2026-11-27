@@ -14,7 +14,7 @@ const COLORS: Array[Color] = [
 	Color(0.24, 0.27, 0.18),  # forest floor
 	Color(0.27, 0.26, 0.17),  # bog / peat
 	Color(0.22, 0.24, 0.2),   # lake bed
-	Color(0.42, 0.41, 0.37),  # urban (trampled yard)
+	Color(0.4, 0.42, 0.3),    # urban (gardens and trampled yards)
 	Color(0.49, 0.5, 0.47),   # rock (granite)
 ]
 const WATER_DROP: float = 1.6   # visual lake-bed depression below the surface
@@ -291,6 +291,7 @@ func _water_level(gx: int, gy: int) -> float:
 func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 	var cell_m: float = SimGrid.CELL_MM * 0.001
 	var per: int = GraphicsSettings.trees_per_cell()
+	var poles: PackedVector3Array = PackedVector3Array()
 	var species: Dictionary = {}  # name -> Array[Transform3D]
 	var customs: Dictionary = {}   # name -> PackedColorArray
 	var props: Dictionary = {}
@@ -307,6 +308,10 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 						var name: String = _species(gx, gy, hk)
 						_place(species, customs, name, gx, gy, hk, cell_m, 0.75 + float((hk >> 20) & 0x3F) / 63.0 * 0.5)
 				TerrainTable.FIELD:
+					if (h0 & 0x7FF) < 4:
+						_place(props, customs, "bales", gx, gy, h0 >> 2, cell_m, 1.0)
+					elif (h0 & 0x3F) == 5 and _near(gx, gy, TerrainTable.URBAN, 3):
+						_place(props, customs, "barn", gx, gy, h0, cell_m, 1.0, true)
 					if (h0 & 0x3FF) < 10:
 						_place(species, customs, "birch" if (h0 >> 10) & 1 == 0 else "juniper", gx, gy, h0, cell_m, 0.8)
 				TerrainTable.BOG:
@@ -318,7 +323,25 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 					if (h0 & 0xFF) < 90:
 						_place(props, customs, "rock_%d" % ((h0 >> 8) % 3), gx, gy, h0, cell_m, 0.8 + float((h0 >> 12) & 0xF) / 15.0 * 1.2)
 				TerrainTable.URBAN:
-					_place(props, customs, "house_%d" % ((h0 >> 8) & 1), gx, gy, h0, cell_m, 1.0, true)
+					# about half the plots have a house; the rest are yards and gardens
+					if (h0 >> 4) % 9 < 4:
+						_place(props, customs, "house_%d" % ((h0 >> 8) & 1), gx, gy, h0, cell_m, 0.85, true)
+					elif (h0 >> 4) % 9 == 4:
+						_place(props, customs, "bales", gx, gy, h0, cell_m, 0.6)
+					elif (h0 >> 4) % 9 == 5:
+						_place(species, customs, "birch", gx, gy, h0, cell_m, 0.7)
+					# fence where the village plot meets open ground
+					for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+						var nx: int = gx + d.x
+						var ny: int = gy + d.y
+						if grid.in_grid(nx, ny) and grid.terrain[grid.index(nx, ny)] == TerrainTable.FIELD:
+							var fp: Vector3 = Vector3((gx + 0.5 + d.x * 0.48) * cell_m, 0.0, -(gy + 0.5 + d.y * 0.48) * cell_m)
+							fp.y = height_at(fp)
+							var yaw: float = PI * 0.5 if d.x != 0 else 0.0
+							_place_xf(props, customs, "fence", Transform3D(Basis(Vector3.UP, yaw), fp), h0 + d.x * 7 + d.y * 13)
+				TerrainTable.ROAD:
+					_road_props(props, customs, poles, gx, gy, h0, cell_m)
+	_wires(poles)
 	var lod: float = GraphicsSettings.tree_lod_distance()
 	for name2: String in species.keys():
 		var xs: Array[Transform3D] = species[name2]
@@ -329,8 +352,94 @@ func _build_foliage(cx0: int, cy0: int, cw: int, ch: int) -> void:
 		var xs2: Array[Transform3D] = props[name3]
 		var cu2: PackedColorArray = customs[name3]
 		var mat: Material = foliage_material if name3 == "reeds" or name3 == "tufts" else ModelLibrary.material(4, 3)
-		var far_end: float = 2600.0 if name3.begins_with("house") else (450.0 if name3 == "tufts" else 900.0)
+		var far_end: float = 2600.0 if name3.begins_with("house") or name3 == "barn" else (700.0 if name3 == "fence" else 1400.0)
 		_multimesh(ModelLibrary.mesh(name3), xs2, cu2, mat, 0.0, far_end, name3 != "tufts")
+
+
+func _near(gx: int, gy: int, t: int, r: int) -> bool:
+	for oy: int in range(-r, r + 1):
+		for ox: int in range(-r, r + 1):
+			if grid.in_grid(gx + ox, gy + oy) and grid.terrain[grid.index(gx + ox, gy + oy)] == t:
+				return true
+	return false
+
+
+## Power-line poles beside the road every few cells, and the odd abandoned car.
+func _road_props(props: Dictionary, customs: Dictionary, poles: PackedVector3Array, gx: int, gy: int, h0: int, cell_m: float) -> void:
+	if (h0 & 0x7F) == 3:
+		var cp: Vector3 = Vector3((gx + 0.5) * cell_m, 0.0, -(gy + 0.5) * cell_m)
+		cp.y = height_at(cp)
+		_place_xf(props, customs, "car_%d" % ((h0 >> 9) & 1), Transform3D(Basis(Vector3.UP, float((h0 >> 12) & 0xFF) / 255.0 * TAU), cp), h0)
+	if (gx * 7 + gy * 3) % 6 != 0:
+		return
+	for d: Vector2i in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]:
+		var nx: int = gx + d.x
+		var ny: int = gy + d.y
+		if not grid.in_grid(nx, ny):
+			continue
+		var nt: int = grid.terrain[grid.index(nx, ny)]
+		if nt == TerrainTable.FIELD or nt == TerrainTable.BOG:
+			var p: Vector3 = Vector3((nx + 0.5) * cell_m, 0.0, -(ny + 0.5) * cell_m)
+			p.y = height_at(p)
+			_place_xf(props, customs, "pole", Transform3D(Basis(Vector3.UP, float(h0 & 3) * 0.1), p), h0)
+			poles.append(p)
+			return
+
+
+## Sagging wires between neighbouring poles.
+func _wires(poles: PackedVector3Array) -> void:
+	if poles.size() < 2:
+		return
+	var seg: PackedVector3Array = PackedVector3Array()
+	for i: int in range(poles.size()):
+		var best: int = -1
+		var best_d: float = 80.0
+		for j: int in range(poles.size()):
+			if j <= i:
+				continue
+			var d: float = poles[i].distance_to(poles[j])
+			if d > 20.0 and d < best_d:
+				best_d = d
+				best = j
+		if best < 0:
+			continue
+		for k: int in [-1, 0, 1]:
+			var off: Vector3 = Vector3(k * 1.1, 8.6, 0)
+			var prev: Vector3 = poles[i] + off
+			for s2: int in range(1, 7):
+				var f: float = s2 / 6.0
+				var p: Vector3 = (poles[i] + off).lerp(poles[best] + off, f)
+				p.y -= sin(f * PI) * best_d * 0.025
+				seg.append(prev)
+				seg.append(p)
+				prev = p
+	if seg.is_empty():
+		return
+	var im: ImmediateMesh = ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	for v: Vector3 in seg:
+		im.surface_add_vertex(v)
+	im.surface_end()
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = im
+	var m: StandardMaterial3D = StandardMaterial3D.new()
+	m.albedo_color = Color(0.08, 0.08, 0.07)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visibility_range_end = 900.0
+	add_child(mi)
+
+
+func _place_xf(into: Dictionary, customs: Dictionary, name: String, xf: Transform3D, hk: int) -> void:
+	if not into.has(name):
+		var arr: Array[Transform3D] = []
+		into[name] = arr
+		customs[name] = PackedColorArray()
+	var list: Array[Transform3D] = into[name]
+	list.append(xf)
+	var cl: PackedColorArray = customs[name]
+	cl.append(Color(float(hk & 0x3FF) / 1023.0, float((hk >> 3) & 0xFF) / 255.0, float((hk >> 11) & 0xFF) / 255.0, 0.0))
 
 
 func _species(gx: int, gy: int, hk: int) -> String:

@@ -34,6 +34,10 @@ var _bob: float = 0.0
 var _burn: float = 0.0
 var _selected: bool = false
 var _rotor: Node3D
+var _lie: float = 0.0
+var _sway: float = 0.0
+var _last_speed: float = 0.0
+var _dust: GPUParticles3D
 var _identified: bool = true
 var _proxy: MeshInstance3D
 
@@ -242,10 +246,16 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 			_shown_members = u.members_alive[entity_id]
 			for m: int in range(_figures.size()):
 				_figures[m].visible = m < _shown_members
+		# pinned or dug in: soldiers go prone; moving: they bob along
+		var prone: bool = (u.suppression[entity_id] >= MoraleSystem.PIN_THRESHOLD or FieldSystem.dug_in_bonus(world, entity_id) > 0) and moved < 0.001
+		var target_lie: float = -1.45 if prone else 0.0
+		_lie = move_toward(_lie, target_lie, delta * 3.0)
 		if moved > 0.001:
 			_bob += delta * 9.0
-			for m2: int in range(_figures.size()):
-				_figures[m2].position.y = absf(sin(_bob + m2 * 1.3)) * 0.06
+		for m2: int in range(_figures.size()):
+			var f: Node3D = _figures[m2]
+			f.rotation.x = _lie
+			f.position.y = (absf(sin(_bob + m2 * 1.3)) * 0.07 if moved > 0.001 else 0.0) + (0.25 if _lie < -0.5 else 0.0)
 	elif terrain != null and not def.is_air:
 		# mud picked up on soft ground, washed off slowly (faster in rain)
 		var t: int = terrain.terrain_at(position)
@@ -254,6 +264,20 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 		else:
 			_mud = maxf(0.0, _mud - delta * 0.002)
 		_set_param(&"mud_amount", _mud)
+		# suspension: pitch with acceleration, a little roll and bounce when moving
+		var spd: float = moved / maxf(delta, 0.001)
+		var acc: float = (spd - _last_speed) / maxf(delta, 0.001)
+		_last_speed = lerpf(_last_speed, spd, 0.3)
+		_sway = _sway + delta * (2.0 + spd * 0.4)
+		var pitch: float = clampf(-acc * 0.004, -0.06, 0.06)
+		model.rotation.x = lerpf(model.rotation.x, pitch + (sin(_sway * 3.1) * 0.012 if spd > 0.5 else 0.0), clampf(delta * 6.0, 0.0, 1.0))
+		model.rotation.z = sin(_sway * 2.3) * 0.01 * clampf(spd / 8.0, 0.0, 1.0)
+		if _dust != null:
+			_dust.emitting = spd > 2.0 and t != TerrainTable.WATER and t != TerrainTable.BOG
+		elif spd > 2.0 and terrain != null:
+			_dust = Effects.make_dust_trail(def.radius_mm * 0.001 * ModelLibrary.UNIT_SCALE)
+			_dust.position = Vector3(0, 0.6, def.radius_mm * 0.001 * 1.2)
+			add_child(_dust)
 	if world.radiation.has(entity_id):
 		_set_param(&"contamination", clampf(world.radiation.contamination[entity_id] / 2000.0, 0.0, 1.0))
 	_aim_turret(world, delta)
@@ -305,6 +329,8 @@ func _aim_turret(world: SimWorld, delta: float) -> void:
 ## cook-off), fire then a lingering smoke column. Stays for the whole match.
 func make_wreck(fx: Effects) -> void:
 	wrecked = true
+	if _dust != null:
+		_dust.emitting = false
 	if _ring != null:
 		_ring.visible = false
 	if _label != null:

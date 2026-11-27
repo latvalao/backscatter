@@ -81,8 +81,9 @@ static func tree_lod_distance() -> float:
 
 static func apply_environment(e: Environment, sun: DirectionalLight3D) -> void:
 	e.ssao_enabled = true
-	e.ssao_radius = 2.5
-	e.ssao_intensity = 1.6
+	e.ssao_radius = 3.0
+	e.ssao_intensity = 2.4
+	e.ssao_power = 1.8
 	e.ssil_enabled = quality >= Quality.MEDIUM
 	e.ssr_enabled = quality >= Quality.HIGH
 	e.ssr_max_steps = 48

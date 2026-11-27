@@ -76,7 +76,9 @@ func _draw_left() -> void:
 
 func _field(x: float, y: float, name: String, value: String, c: Color) -> float:
 	if name != "":
-		UiStyle.text(_left, Vector2(x, y), name, UiStyle.FONT_S, UiStyle.DIM, false)
-		x += UiStyle.text_width(name, UiStyle.FONT_S) + 6.0
-	UiStyle.text(_left, Vector2(x, y), value, UiStyle.FONT_M, c, false)
-	return x + UiStyle.text_width(value, UiStyle.FONT_M) + 22.0
+		UiStyle.text(_left, Vector2(x, y), name.to_upper(), UiStyle.FONT_S, UiStyle.DIM, false)
+		x += UiStyle.text_width(name.to_upper(), UiStyle.FONT_S) + 7.0
+	UiStyle.text(_left, Vector2(x, y), value, UiStyle.FONT_M, c, false, true)
+	var nx: float = x + UiStyle.text_width(value, UiStyle.FONT_M, true) + 14.0
+	_left.draw_line(Vector2(nx - 7, y - 13), Vector2(nx - 7, y + 3), UiStyle.LINE, 1.0)
+	return nx + 6.0

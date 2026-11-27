@@ -50,6 +50,7 @@ func _on_input(e: InputEvent) -> void:
 
 func _draw_card() -> void:
 	_tiles.clear()
+	UiStyle.ticks(_canvas, Rect2(Vector2(-6, -4), _canvas.size + Vector2(12, 8)))
 	var w: SimWorld = runner.world
 	var sel: PackedInt32Array = controller.selection
 	if sel.is_empty() or not w.is_unit(sel[0]):

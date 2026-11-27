@@ -22,6 +22,6 @@ glow = 0.35
 grade_shadows = Color(0.9, 0.95, 1.12, 1)
 grade_highlights = Color(1.1, 0.98, 0.9, 1)
 saturation = 0.9
-contrast = 1.0
+contrast = 1.1
 grain = 0.035
 vignette = 0.3

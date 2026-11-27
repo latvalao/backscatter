@@ -140,6 +140,57 @@ static func house(variant: int) -> ForgeMesh:
 	return m
 
 
+## Wooden power-line pole with a cross-arm and insulators.
+static func pole() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.cyl(Vector3(0, -0.5, 0), Vector3(0, 9.0, 0), 0.16, 0.12, 6, ForgeModels.BARK)
+	m.box(Vector3(0, 8.3, 0), Vector3(2.6, 0.16, 0.16), ForgeModels.PLANK, 0.02)
+	for x: float in [-1.1, 0.0, 1.1]:
+		m.cyl(Vector3(x, 8.46, 0), Vector3(x, 8.75, 0), 0.06, 0.05, 5, ForgeModels.N_CONCRETE)
+	return m
+
+
+## A 6 m run of weathered wooden fence (along local X).
+static func fence() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	for i: int in range(3):
+		m.box(Vector3(-3.0 + i * 3.0, -0.2, 0), Vector3(0.14, 1.5, 0.14), ForgeModels.PLANK, 0.02)
+	m.box(Vector3(0, 0.55, 0), Vector3(6.1, 0.12, 0.06), ForgeModels.PLANK, 0.01)
+	m.box(Vector3(0, 1.0, 0), Vector3(6.1, 0.12, 0.06), ForgeModels.PLANK, 0.01)
+	return m
+
+
+## Abandoned car, stripped and rusting.
+static func car(variant: int) -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	var body: int = ForgeModels.N_RUST if variant == 0 else ForgeModels.PLASTER
+	m.box(Vector3(0, 0.25, 0), Vector3(1.7, 0.65, 4.3), body, 0.12, Vector2(1.0, 0.95))
+	m.box(Vector3(0, 0.9, 0.25), Vector3(1.5, 0.55, 2.1), body, 0.12, Vector2(0.85, 0.75), Vector2(0, 0.1))
+	m.box(Vector3(0, 0.95, -0.82), Vector3(1.35, 0.42, 0.05), ForgeModels.WINDOW, 0.0, Vector2(1.0, 1.0), Vector2(0, 0.2))
+	for z: float in [-1.35, 1.35]:
+		for x: float in [-0.8, 0.8]:
+			m.cyl(Vector3(x - 0.1 * signf(x), 0.32, z), Vector3(x + 0.1 * signf(x), 0.32, z), 0.32, 0.32, 8, ForgeModels.BARK)
+	return m
+
+
+## Round hay bales in a little row.
+static func bales() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	for i: int in range(3):
+		var x: float = -2.2 + i * 2.2
+		m.cyl(Vector3(x, 0.75, -0.7), Vector3(x, 0.75, 0.7), 0.78, 0.78, 10, ForgeModels.REED, true)
+	return m
+
+
+## Collective-farm barn: long plank shed with a rusty roof.
+static func barn() -> ForgeMesh:
+	var m: ForgeMesh = mesh()
+	m.box(Vector3(0, -0.4, 0), Vector3(14.0, 5.2, 8.0), ForgeModels.PLANK, 0.08)
+	m.box(Vector3(0, 4.8, 0), Vector3(14.8, 2.6, 8.8), ForgeModels.N_RUST, 0.0, Vector2(1.0, 0.02))
+	m.box(Vector3(0, -0.2, -4.03), Vector3(3.6, 3.6, 0.08), ForgeModels.BARK, 0.01)
+	return m
+
+
 ## Ruined Soviet-era border post (beauty corner).
 static func border_post() -> ForgeMesh:
 	var m: ForgeMesh = mesh()

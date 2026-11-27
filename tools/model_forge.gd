@@ -110,6 +110,12 @@ func _nature() -> void:
 		_save_mesh(near, "%s/%s.res" % [dir, name], 0.6)
 		_save_mesh(far, "%s/%s_far.res" % [dir, name], 0.6)
 	_save_mesh(ForgeNature.reeds(), dir + "/reeds.res", 0.3)
+	_save_mesh(ForgeNature.pole(), dir + "/pole.res", 0.6)
+	_save_mesh(ForgeNature.fence(), dir + "/fence.res", 0.4)
+	_save_mesh(ForgeNature.car(0), dir + "/car_0.res", 0.5)
+	_save_mesh(ForgeNature.car(1), dir + "/car_1.res", 0.5)
+	_save_mesh(ForgeNature.bales(), dir + "/bales.res", 0.3)
+	_save_mesh(ForgeNature.barn(), dir + "/barn.res", 0.8)
 	for i: int in range(3):
 		_save_mesh(ForgeNature.rock(30 + i * 7), "%s/rock_%d.res" % [dir, i], 0.4)
 	_save_mesh(ForgeNature.fallen_tree(), dir + "/fallen_tree.res", 0.4)

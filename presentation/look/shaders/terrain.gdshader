@@ -70,8 +70,13 @@ void fragment() {
 	float puddle = bog * smoothstep(0.62, 0.72, meso + fine * 0.1);
 	col = mix(col, col * 0.5, bog * 0.3 + puddle * 0.5);
 	rough = mix(rough, 0.35, puddle);
-	// road gravel: lighter centre, darker ruts
-	col = mix(col, col * (0.9 + 0.2 * noise(world_pos.xz * 6.0)), road);
+	// road: a crisp gravel band with darker wheel ruts instead of a soft smear
+	float rd = smoothstep(0.32, 0.55, road);
+	vec3 gravel = vec3(0.47, 0.44, 0.38) * (0.9 + 0.2 * noise(world_pos.xz * 6.0));
+	col = mix(col, gravel, rd);
+	float ruts = smoothstep(0.55, 0.9, road) * smoothstep(0.35, 0.5, noise(world_pos.xz * vec2(0.6, 0.6)));
+	col = mix(col, col * 0.78, ruts * 0.4);
+	rough = mix(rough, 0.85, rd);
 	// trail map: tracks (R) and craters / scorch (G)
 	vec2 trail = texture(trail_tex, uv).rg;
 	float soft = clamp(field * 0.6 + bog + forest * 0.4, 0.2, 1.0);
@@ -86,7 +91,8 @@ void fragment() {
 	col = mix(col, vec3(0.7, 0.73, 0.78), clamp(snow * 1.3, 0.0, 1.0));
 	// fog of war
 	float seen = texture(fog_tex, uv).r;
-	float f = mix(1.0, mix(0.42, 1.0, seen), fog_enabled);
+	float f = mix(1.0, mix(0.62, 1.0, seen), fog_enabled);
+	col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))), (1.0 - seen) * fog_enabled * 0.55);
 	col *= f;
 	if (rad_enabled > 0.5) {
 		float r = texture(rad_tex, uv).r;
