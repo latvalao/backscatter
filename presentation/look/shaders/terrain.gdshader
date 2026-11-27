@@ -8,6 +8,7 @@ render_mode cull_back, diffuse_burley;
 uniform sampler2D fog_tex : filter_linear, repeat_disable;
 uniform sampler2D rad_tex : filter_linear, repeat_disable;
 uniform sampler2D trail_tex : filter_linear, repeat_disable;
+uniform sampler2D cells_tex : filter_linear, repeat_disable;
 uniform vec2 map_size_m = vec2(4000.0, 4000.0);
 uniform float fog_enabled = 1.0;
 uniform float rad_enabled = 0.0;
@@ -71,12 +72,16 @@ void fragment() {
 	col = mix(col, col * 0.5, bog * 0.3 + puddle * 0.5);
 	rough = mix(rough, 0.35, puddle);
 	// road: a crisp gravel band with darker wheel ruts instead of a soft smear
-	float rd = smoothstep(0.32, 0.55, road);
-	vec3 gravel = vec3(0.47, 0.44, 0.38) * (0.9 + 0.2 * noise(world_pos.xz * 6.0));
-	col = mix(col, gravel, rd);
-	float ruts = smoothstep(0.55, 0.9, road) * smoothstep(0.35, 0.5, noise(world_pos.xz * vec2(0.6, 0.6)));
-	col = mix(col, col * 0.78, ruts * 0.4);
+	vec2 cells = texture(cells_tex, vec2(uv.x, uv.y)).rg;
+	float rd = smoothstep(0.42, 0.62, cells.r + (noise(world_pos.xz * 0.35) - 0.5) * 0.12);
+	vec3 dirt = vec3(0.37, 0.34, 0.28) * (0.88 + 0.24 * noise(world_pos.xz * 6.0));
+	col = mix(col, dirt, rd);
+	float ruts = rd * smoothstep(0.35, 0.5, noise(world_pos.xz * vec2(0.6, 0.6)));
+	col = mix(col, col * 0.8, ruts * 0.4);
 	rough = mix(rough, 0.85, rd);
+	// village plots: trampled grass and vegetable beds
+	float plot = smoothstep(0.4, 0.7, cells.g);
+	col = mix(col, mix(vec3(0.36, 0.4, 0.24), vec3(0.33, 0.27, 0.19), step(0.62, noise(world_pos.xz * 0.45))), plot * 0.6);
 	// trail map: tracks (R) and craters / scorch (G)
 	vec2 trail = texture(trail_tex, uv).rg;
 	float soft = clamp(field * 0.6 + bog + forest * 0.4, 0.2, 1.0);

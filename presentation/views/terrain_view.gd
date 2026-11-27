@@ -48,6 +48,12 @@ func build(p_grid: SimGrid) -> void:
 	_trail_img = Image.create(maxi(1, int(size_m.x / TRAIL_M)), maxi(1, int(size_m.y / TRAIL_M)), false, Image.FORMAT_RG8)
 	_trail_tex = ImageTexture.create_from_image(_trail_img)
 	material.set_shader_parameter("trail_tex", _trail_tex)
+	# one pixel per cell: R = road, G = village plot (crisp, cell-accurate)
+	var cells: Image = Image.create(grid.width, grid.height, false, Image.FORMAT_RG8)
+	for i: int in range(grid.cell_count()):
+		var t: int = grid.terrain[i]
+		cells.set_pixel(grid.cell_x(i), grid.cell_y(i), Color(1.0 if t == TerrainTable.ROAD else 0.0, 1.0 if t == TerrainTable.URBAN else 0.0, 0.0))
+	material.set_shader_parameter("cells_tex", ImageTexture.create_from_image(cells))
 	for cy: int in range(0, grid.height, CHUNK):
 		for cx: int in range(0, grid.width, CHUNK):
 			var cw: int = mini(CHUNK, grid.width - cx)
