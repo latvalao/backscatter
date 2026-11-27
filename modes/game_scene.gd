@@ -17,6 +17,10 @@ var transport: NetTransport
 var lockstep: Lockstep
 var replay_mode: bool = false
 var dosimetry: DosimetryOverlay
+var look: LookDirector
+## Tools only (beauty corner): use this world instead of MatchSetup.
+var preset_world: SimWorld
+var _terrain: TerrainView
 var signals_overlay: SignalOverlay
 var _saved_replay: bool = false
 
@@ -59,13 +63,13 @@ static func grid_for(s: MatchSettings) -> SimGrid:
 
 func _ready() -> void:
 	var t0: int = Time.get_ticks_msec()
-	var grid: SimGrid = grid_for(settings)
+	var grid: SimGrid = preset_world.grid if preset_world != null else grid_for(settings)
 	runner = SimRunner.new()
 	if replay_mode:
 		runner.replay = ReplayPlayer.new(get_meta("replay"), grid)
 		runner.world = runner.replay.world
 	else:
-		runner.world = MatchSetup.create(settings, DefLoader.load_default(), grid)
+		runner.world = preset_world if preset_world != null else MatchSetup.create(settings, DefLoader.load_default(), grid)
 		var humans: PackedInt32Array = Lobby.human_players(settings)
 		var delay: int = 1 if humans.size() <= 1 else 3
 		lockstep = Lockstep.new(runner.world, transport, local_player, humans, delay)
@@ -78,6 +82,7 @@ func _ready() -> void:
 	print("match ready in %d ms (%s, %d players)" % [Time.get_ticks_msec() - t0, settings.mode, settings.players.size()])
 
 	var terrain: TerrainView = TerrainView.new()
+	_terrain = terrain
 	add_child(terrain)
 	terrain.build(world.grid)
 
@@ -87,6 +92,9 @@ func _ready() -> void:
 	add_child(fx)
 
 	var local_team: int = world.team_of_player(local_player) if not replay_mode else 0
+	fx.local_team = local_team
+	if world.plant_x >= 0:
+		terrain.place_plant(SimRunner.sim_to_view(world.plant_x, world.plant_y, 0))
 	views = ViewSync.new()
 	views.runner = runner
 	views.effects = fx
@@ -117,6 +125,7 @@ func _ready() -> void:
 	cam.terrain = terrain
 	cam.bounds = Rect2(0, -world.grid.height_mm() * 0.001, world.grid.width_mm() * 0.001, world.grid.height_mm() * 0.001)
 	add_child(cam)
+	look.camera_rig = cam
 	_focus_start(world, local_team)
 
 	var ui: CanvasLayer = CanvasLayer.new()
@@ -167,6 +176,10 @@ func _on_tick(_tick: int) -> void:
 func _on_desync(tick: int, details: String) -> void:
 	hud.banner("DESYNC at tick %d — match halted.\n%s" % [tick, details])
 	push_error(details)
+
+
+func terrain_view() -> TerrainView:
+	return _terrain
 
 
 func save_replay() -> String:
@@ -224,23 +237,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _environment() -> void:
-	var sun: DirectionalLight3D = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-38.0, 35.0, 0.0)
-	sun.light_energy = 0.9
-	sun.light_color = Color(0.92, 0.93, 0.97)
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 1200.0
-	add_child(sun)
-	var env: WorldEnvironment = WorldEnvironment.new()
-	var e: Environment = Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.60, 0.64, 0.67)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.62, 0.66, 0.70)
-	e.ambient_light_energy = 0.45
-	e.fog_enabled = true
-	e.fog_light_color = Color(0.62, 0.66, 0.69)
-	e.fog_density = 0.00012
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.environment = e
-	add_child(env)
+	look = LookDirector.new()
+	look.runner = runner
+	add_child(look)
+
+
+## Presentation-only per-frame glue: camera focus for the canopy fade, film
+## grain that rises over high dose rates under the camera (§8.2).
+func _process(_delta: float) -> void:
+	if cam == null or views == null or runner == null or runner.world == null:
+		return
+	var f: Vector3 = cam.position
+	views.focus_point = f
+	if look != null:
+		var s: Vector2i = SimRunner.view_to_sim(f)
+		var rate: int = runner.world.radfield.rate_at(s.x, s.y) if runner.world.radfield != null else 0
+		look.dose_grain = clampf((log(maxf(1.0, float(rate))) / log(10.0) - 2.0) * 0.02, 0.0, 0.08)

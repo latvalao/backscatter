@@ -47,8 +47,7 @@ func _process(_delta: float) -> bool:
 		views.show_labels = true
 		var cam: RtsCamera = _scene.get("cam") as RtsCamera
 		if _zoom > 0.0:
-			cam.distance = _zoom
-			cam._apply()
+			cam.set_distance(_zoom)
 		if _focus != "":
 			var parts: PackedStringArray = _focus.split(",")
 			cam.focus(Vector3(parts[0].to_float(), 0, -parts[1].to_float()))

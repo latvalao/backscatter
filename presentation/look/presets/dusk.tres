@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="LookPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://presentation/look/look_preset.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+sun_elevation_deg = 5
+sun_azimuth_deg = 290
+sun_color = Color(1, 0.52, 0.32, 1)
+sun_energy = 1.2
+sky_top = Color(0.3, 0.36, 0.55, 1)
+sky_horizon = Color(0.95, 0.55, 0.38, 1)
+ground_color = Color(0.22, 0.18, 0.18, 1)
+ambient_energy = 0.45
+fog_color = Color(0.7, 0.5, 0.45, 1)
+fog_density = 0.0003
+fog_sun_scatter = 0.6
+volumetric_density = 0.003
+bog_mist = 0.6
+exposure = 1.1
+glow = 0.4
+grade_shadows = Color(0.85, 0.92, 1.15, 1)
+grade_highlights = Color(1.15, 0.96, 0.85, 1)
+saturation = 1.0
+contrast = 1.1
+grain = 0.04
+vignette = 0.4

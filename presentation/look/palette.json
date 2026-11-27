@@ -1,0 +1,10 @@
+{
+	"_doc": "Palette atlas (docs/VISUALS.md §3, §6.1). Rows = material family, 16 swatch columns. Models store the swatch in UV; the scale-model shader samples this texture. Column meanings for rows 0-3: camo, camo dark, camo third, gunmetal, rubber, canvas, skin, uniform, webbing, helmet, glass, concrete, wood, rust, earth/sandbag, marking. Row 4 (nature): pine needles, spruce, birch gold, birch bark, bark, moss, reed, aspen, granite, lichen, roof, plaster, planks, rust, concrete, window.",
+	"rows": {
+		"0_nc": ["#4F5A3E", "#343B2A", "#5C6448", "#3A3D3A", "#24251F", "#6E6A52", "#B08C72", "#4D5640", "#3F4632", "#4A5240", "#1C2326", "#8A8D86", "#7A6448", "#8C4B2F", "#6B5E45", "#B03A2E"],
+		"1_ec": ["#5B5A3A", "#2A2A22", "#5E4B33", "#3A3A36", "#23231E", "#6C6448", "#B08C72", "#5F5C3E", "#4A4632", "#55573A", "#1C2326", "#8A8D86", "#7A6448", "#8C4B2F", "#6B5E45", "#B03A2E"],
+		"2_mr": ["#5A5440", "#3A3528", "#6A5038", "#3B3936", "#22211D", "#625C4A", "#A98468", "#4A4A44", "#4A3E2E", "#3E4A3A", "#1C2326", "#8A8D86", "#6E5A40", "#8C4B2F", "#6B5E45", "#B03A2E"],
+		"3_neutral": ["#55603F", "#3A4130", "#6A6A50", "#3A3D3A", "#24251F", "#8A8466", "#B08C72", "#4D5640", "#3F4632", "#4A5240", "#1C2326", "#8A8D86", "#7C6649", "#8C4B2F", "#6E6146", "#B8322A"],
+		"4_nature": ["#2F4A3A", "#35503C", "#C9A13B", "#E6E2D6", "#5A4636", "#6B7A4A", "#9C8E5A", "#C46E2E", "#7E807A", "#8A8F6A", "#6E3B2C", "#B9B2A0", "#7D5E40", "#8C4B2F", "#8A8D86", "#1E2628"]
+	}
+}

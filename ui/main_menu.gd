@@ -60,6 +60,26 @@ func _ready() -> void:
 	if steam_btn.disabled:
 		steam_btn.tooltip_text = "Install the GodotSteam addon to enable Steam play"
 	_button(_main, "Watch last replay", _watch_replay)
+	GraphicsSettings.load_settings()
+	var gfx: HBoxContainer = HBoxContainer.new()
+	_main.add_child(gfx)
+	var q: Button = _button(gfx, "", func() -> void: pass)
+	q.pressed.connect(func() -> void:
+		GraphicsSettings.cycle_quality()
+		q.text = "Graphics: " + GraphicsSettings.NAMES[GraphicsSettings.quality])
+	q.text = "Graphics: " + GraphicsSettings.NAMES[GraphicsSettings.quality]
+	var se: Button = _button(gfx, "", func() -> void: pass)
+	se.pressed.connect(func() -> void:
+		GraphicsSettings.season = "winter" if GraphicsSettings.season == "autumn" else "autumn"
+		GraphicsSettings.save_settings()
+		se.text = "Season: " + GraphicsSettings.season.capitalize())
+	se.text = "Season: " + GraphicsSettings.season.capitalize()
+	var ts: Button = _button(gfx, "", func() -> void: pass)
+	ts.pressed.connect(func() -> void:
+		GraphicsSettings.tilt_shift = not GraphicsSettings.tilt_shift
+		GraphicsSettings.save_settings()
+		ts.text = "Tilt-shift: " + ("on" if GraphicsSettings.tilt_shift else "off"))
+	ts.text = "Tilt-shift: " + ("on" if GraphicsSettings.tilt_shift else "off")
 	_button(_main, "Quit", func() -> void: get_tree().quit())
 
 	_lobby_box = VBoxContainer.new()

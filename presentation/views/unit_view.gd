@@ -1,101 +1,70 @@
-## Placeholder unit visual (§0: boxes with team colours until M8).
-## Vehicles: hull + turret. Infantry: one figure per surviving soldier.
-## Also draws a selection ring and a small status label.
+## Unit / structure visual: forged low-poly model dressed with the scale-model
+## shader, team ground ring (team identity is never carried by paint, §10),
+## turret tracking its sim target, infantry drawn as individual soldiers,
+## mud / contamination / construction state and the persistent wreck state.
+## Read-only with respect to the sim.
 class_name UnitView
 extends Node3D
 
-const TEAM_COLORS: Array[Color] = [Color(0.36, 0.46, 0.34), Color(0.52, 0.42, 0.26), Color(0.42, 0.44, 0.52), Color(0.55, 0.55, 0.53)]
-const FLAG_COLORS: Array[Color] = [Color(0.25, 0.55, 0.95), Color(0.85, 0.25, 0.2), Color(0.9, 0.8, 0.2), Color(0.85, 0.85, 0.85)]
+## Colour-blind-safe team markers: blue / orange / yellow / grey.
+const TEAM_COLORS: Array[Color] = [Color(0.24, 0.55, 0.88), Color(0.9, 0.5, 0.15), Color(0.92, 0.82, 0.25), Color(0.75, 0.75, 0.72)]
+const FLAG_COLORS: Array[Color] = [Color(0.24, 0.55, 0.88), Color(0.9, 0.5, 0.15), Color(0.92, 0.82, 0.25), Color(0.85, 0.85, 0.85)]
 
 var entity_id: int = 0
 var team: int = 0
+var faction: String = ""
 var def: UnitStats
 var ghost: bool = false
+var wrecked: bool = false
+var model: Node3D
 
 var _ring: MeshInstance3D
+var _ring_mat: StandardMaterial3D
 var _label: Label3D
-var _figures: Array[MeshInstance3D] = []
-var _material: StandardMaterial3D
+var _figures: Array[Node3D] = []
+var _figure_base: Array[Vector3] = []
+var _geoms: Array[GeometryInstance3D] = []
+var _turret: Node3D
 var _shown_members: int = -1
 var _flag_mat: StandardMaterial3D
 var _complete: bool = true
+var _mud: float = 0.0
+var _last_pos: Vector3 = Vector3.INF
+var _bob: float = 0.0
+var _burn: float = 0.0
+var _selected: bool = false
 
 
-func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false) -> void:
+func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false, p_faction: String = "") -> void:
 	entity_id = id
 	team = p_team
 	def = p_def
 	ghost = p_ghost
+	faction = p_faction if p_faction != "" else def.faction
 	name = ("Ghost_%d" if ghost else "Unit_%d") % id
-	_material = StandardMaterial3D.new()
-	_material.albedo_color = TEAM_COLORS[team % TEAM_COLORS.size()]
+	model = ModelLibrary.instantiate(def)
+	if model == null:
+		model = _fallback_box()
+	add_child(model)
+	var mat: Material
 	if ghost:
-		_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_material.albedo_color.a = 0.35
-		_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var r: float = def.radius_mm * 0.001
-	if def.is_structure:
-		_build_structure()
-	elif def.is_air:
-		var body: MeshInstance3D = MeshInstance3D.new()
-		var bm: BoxMesh = BoxMesh.new()
-		bm.size = Vector3(4.0, 0.4, 1.0) if def.altitude_mm > 200000 else Vector3(1.6, 0.4, 1.6)
-		body.mesh = bm
-		body.material_override = _material
-		add_child(body)
-	elif def.is_infantry:
-		for m: int in range(def.members):
-			var fig: MeshInstance3D = MeshInstance3D.new()
-			var cap: CapsuleMesh = CapsuleMesh.new()
-			cap.radius = 0.35
-			cap.height = 1.8
-			fig.mesh = cap
-			fig.material_override = _material
-			var ang: float = TAU * m / def.members
-			var rad: float = r * (0.35 + 0.5 * float(m % 2))
-			fig.position = Vector3(cos(ang) * rad, 0.9, sin(ang) * rad)
-			add_child(fig)
-			_figures.append(fig)
+		mat = ModelLibrary.ghost_material()
 	else:
-		var hull: MeshInstance3D = MeshInstance3D.new()
-		var hb: BoxMesh = BoxMesh.new()
-		var length: float = r * 2.0
-		hb.size = Vector3(length * 0.5, 1.6 if def.size_class == UnitStats.SIZE_LARGE else 1.9, length)
-		hull.mesh = hb
-		hull.position.y = hb.size.y * 0.5
-		hull.material_override = _material
-		add_child(hull)
-		if not def.weapons.is_empty():
-			var turret: MeshInstance3D = MeshInstance3D.new()
-			var tb: BoxMesh = BoxMesh.new()
-			tb.size = Vector3(length * 0.32, 0.8, length * 0.36)
-			turret.mesh = tb
-			turret.position = Vector3(0, hb.size.y + 0.4, length * 0.05)
-			turret.material_override = _material
-			add_child(turret)
-			var barrel: MeshInstance3D = MeshInstance3D.new()
-			var bb: BoxMesh = BoxMesh.new()
-			bb.size = Vector3(0.2, 0.2, length * 0.5)
-			barrel.mesh = bb
-			barrel.position = Vector3(0, hb.size.y + 0.45, -length * 0.35)
-			barrel.material_override = _material
-			add_child(barrel)
+		mat = ModelLibrary.material(ModelLibrary.faction_row(faction), ModelLibrary.camo_style(faction))
+	ModelLibrary.dress(model, mat)
+	_collect_geoms(model)
+	if not def.is_structure:
+		model.scale = Vector3.ONE * ModelLibrary.UNIT_SCALE
+	_turret = model.get_node_or_null("Turret") as Node3D
+	if def.is_infantry:
+		_build_squad()
+	if def.is_air:
+		model.position.y = 0.0
+	if def.is_structure and def.role == "depot_objective":
+		_build_flag()
 	if ghost:
 		return
-	_ring = MeshInstance3D.new()
-	if def.is_structure:
-		r = maxf(def.footprint_w, def.footprint_h) * SimGrid.CELL_MM * 0.0006
-	var torus: TorusMesh = TorusMesh.new()
-	torus.inner_radius = r + 1.2
-	torus.outer_radius = r + 1.8
-	_ring.mesh = torus
-	var rmat: StandardMaterial3D = StandardMaterial3D.new()
-	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rmat.albedo_color = Color(0.6, 1.0, 0.6)
-	_ring.material_override = rmat
-	_ring.position.y = 0.3
-	_ring.visible = false
-	add_child(_ring)
+	_build_ring()
 	_label = Label3D.new()
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.no_depth_test = true
@@ -103,81 +72,159 @@ func setup(id: int, p_team: int, p_def: UnitStats, p_ghost: bool = false) -> voi
 	_label.pixel_size = 0.0012
 	_label.font_size = 20
 	_label.outline_size = 6
-	_label.position.y = 5.0
+	_label.position.y = 6.0
 	_label.visible = false
 	add_child(_label)
 
 
-func _build_structure() -> void:
+func _collect_geoms(n: Node) -> void:
+	var g: GeometryInstance3D = n as GeometryInstance3D
+	if g != null:
+		_geoms.append(g)
+	for c: Node in n.get_children():
+		_collect_geoms(c)
+
+
+func _fallback_box() -> Node3D:
+	var root: Node3D = Node3D.new()
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	var bm: BoxMesh = BoxMesh.new()
+	var r: float = def.radius_mm * 0.001
+	bm.size = Vector3(r, 1.6, r * 2.0)
+	mi.mesh = bm
+	mi.position.y = 0.8
+	root.add_child(mi)
+	return root
+
+
+## Soldiers in a loose, slightly irregular file; SoldierA riflemen, SoldierB
+## support gunner, Prop (mortar / ATGM post) beside the squad leader.
+func _build_squad() -> void:
+	var a: MeshInstance3D = model.get_node_or_null("SoldierA") as MeshInstance3D
+	var b: MeshInstance3D = model.get_node_or_null("SoldierB") as MeshInstance3D
+	var prop: MeshInstance3D = model.get_node_or_null("Prop") as MeshInstance3D
+	if a == null:
+		return
+	var n: int = maxi(1, def.members)
+	var spread: float = maxf(2.2, def.radius_mm * 0.001 * 0.8) / ModelLibrary.UNIT_SCALE
+	for m: int in range(n):
+		var src: MeshInstance3D = b if (b != null and (m == 1 or m == 5)) else a
+		var fig: MeshInstance3D = MeshInstance3D.new()
+		fig.mesh = src.mesh
+		fig.material_override = src.material_override
+		var h: int = SimRng.hash3(def.index, m, 3)
+		var row: int = m / 3
+		var col: int = m % 3
+		var off: Vector3 = Vector3((col - 1) * spread * 0.55 + (float(h & 0xFF) / 255.0 - 0.5) * 0.8,
+			0.0, (row - (n - 1) / 6.0) * spread * 0.6 + (float((h >> 8) & 0xFF) / 255.0 - 0.5) * 0.8)
+		fig.position = off
+		fig.rotation.y = (float((h >> 16) & 0xFF) / 255.0 - 0.5) * 0.6
+		model.add_child(fig)
+		_figures.append(fig)
+		_figure_base.append(off)
+		_geoms.append(fig)
+	a.visible = false
+	if b != null:
+		b.visible = false
+	if prop != null:
+		prop.position = Vector3(spread * 0.9, 0, spread * 0.3)
+
+
+func _build_ring() -> void:
+	_ring = MeshInstance3D.new()
+	var r: float = def.radius_mm * 0.001 * (1.15 if not def.is_infantry else 0.9)
+	if def.is_structure:
+		r = maxf(def.footprint_w, def.footprint_h) * SimGrid.CELL_MM * 0.00062
+	var torus: TorusMesh = TorusMesh.new()
+	torus.inner_radius = r + 0.6
+	torus.outer_radius = r + 1.1
+	torus.rings = 24
+	torus.ring_segments = 3
+	_ring.mesh = torus
+	_ring.scale = Vector3(1.0, 0.05, 1.0)
+	_ring_mat = StandardMaterial3D.new()
+	_ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ring_mat.no_depth_test = true
+	_ring_mat.render_priority = 1
+	var c: Color = TEAM_COLORS[team % TEAM_COLORS.size()]
+	c.a = 0.5
+	_ring_mat.albedo_color = c
+	_ring.material_override = _ring_mat
+	_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ring.position.y = 0.25
+	_ring.visible = not def.is_structure or def.role == "hq"
+	add_child(_ring)
+
+
+func _build_flag() -> void:
 	var cell: float = SimGrid.CELL_MM * 0.001
 	var sx: float = def.footprint_w * cell
-	var sz: float = def.footprint_h * cell
-	var height: float = 6.0
-	match def.role:
-		"hq":
-			height = 7.5
-		"trench", "vehicle_pit":
-			height = 0.7
-		"tank_trap":
-			height = 1.5
-		"depot_objective":
-			height = 4.0
-	var body: MeshInstance3D = MeshInstance3D.new()
-	var bm: BoxMesh = BoxMesh.new()
-	bm.size = Vector3(sx * 0.92, height, sz * 0.92)
-	body.mesh = bm
-	body.position.y = height * 0.5
-	if def.role == "trench" or def.role == "vehicle_pit":
-		_material.albedo_color = Color(0.25, 0.22, 0.17)
-	body.material_override = _material
-	add_child(body)
-	if def.role == "hq":
-		var mast: MeshInstance3D = MeshInstance3D.new()
-		var mm: CylinderMesh = CylinderMesh.new()
-		mm.top_radius = 0.15
-		mm.bottom_radius = 0.25
-		mm.height = 14.0
-		mast.mesh = mm
-		mast.position = Vector3(sx * 0.3, height + 7.0, 0)
-		mast.material_override = _material
-		add_child(mast)
-	if def.role == "depot_objective":
-		var pole: MeshInstance3D = MeshInstance3D.new()
-		var pm: CylinderMesh = CylinderMesh.new()
-		pm.top_radius = 0.12
-		pm.bottom_radius = 0.12
-		pm.height = 12.0
-		pole.mesh = pm
-		pole.position = Vector3(sx * 0.5 + 1.0, 6.0, 0)
-		add_child(pole)
-		var flag: MeshInstance3D = MeshInstance3D.new()
-		var fm: BoxMesh = BoxMesh.new()
-		fm.size = Vector3(4.0, 2.5, 0.1)
-		flag.mesh = fm
-		flag.position = Vector3(sx * 0.5 + 3.0, 10.5, 0)
-		_flag_mat = StandardMaterial3D.new()
-		_flag_mat.albedo_color = FLAG_COLORS[3]
-		_flag_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		flag.material_override = _flag_mat
-		add_child(flag)
+	var pole: MeshInstance3D = MeshInstance3D.new()
+	var pm: CylinderMesh = CylinderMesh.new()
+	pm.top_radius = 0.1
+	pm.bottom_radius = 0.12
+	pm.height = 12.0
+	pole.mesh = pm
+	pole.position = Vector3(sx * 0.5 + 1.0, 6.0, 0)
+	add_child(pole)
+	var flag: MeshInstance3D = MeshInstance3D.new()
+	var fm: BoxMesh = BoxMesh.new()
+	fm.size = Vector3(3.6, 2.2, 0.08)
+	flag.mesh = fm
+	flag.position = Vector3(sx * 0.5 + 2.9, 10.6, 0)
+	_flag_mat = StandardMaterial3D.new()
+	_flag_mat.albedo_color = FLAG_COLORS[3]
+	flag.material_override = _flag_mat
+	add_child(flag)
 
 
 func set_selected(on: bool) -> void:
+	_selected = on
 	if _ring != null:
-		_ring.visible = on
+		_ring.visible = on or not def.is_structure or def.role == "hq"
+		var c: Color = TEAM_COLORS[team % TEAM_COLORS.size()]
+		if on:
+			c = c.lightened(0.35)
+		c.a = 0.95 if on else 0.5
+		_ring_mat.albedo_color = c
 
 
-func refresh(world: SimWorld, show_label: bool) -> void:
-	if ghost or not world.units.has(entity_id):
+func _set_param(p: StringName, v: float) -> void:
+	for g: GeometryInstance3D in _geoms:
+		g.set_instance_shader_parameter(p, v)
+
+
+## Per-frame presentation update (only while visible).
+func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: float) -> void:
+	if ghost or wrecked or not world.units.has(entity_id):
 		return
 	var u: UnitStore = world.units
 	if def.is_structure:
 		_refresh_structure(world, show_label)
 		return
-	if def.is_infantry and _shown_members != u.members_alive[entity_id]:
-		_shown_members = u.members_alive[entity_id]
-		for m: int in range(_figures.size()):
-			_figures[m].visible = m < _shown_members
+	var moved: float = 0.0 if _last_pos == Vector3.INF else Vector2(position.x - _last_pos.x, position.z - _last_pos.z).length()
+	_last_pos = position
+	if def.is_infantry:
+		if _shown_members != u.members_alive[entity_id]:
+			_shown_members = u.members_alive[entity_id]
+			for m: int in range(_figures.size()):
+				_figures[m].visible = m < _shown_members
+		if moved > 0.001:
+			_bob += delta * 9.0
+			for m2: int in range(_figures.size()):
+				_figures[m2].position.y = absf(sin(_bob + m2 * 1.3)) * 0.06
+	elif terrain != null and not def.is_air:
+		# mud picked up on soft ground, washed off slowly (faster in rain)
+		var t: int = terrain.terrain_at(position)
+		if moved > 0.001 and (t == TerrainTable.BOG or t == TerrainTable.FIELD or t == TerrainTable.FOREST):
+			_mud = minf(1.0, _mud + delta * (0.08 if t == TerrainTable.BOG else 0.015))
+		else:
+			_mud = maxf(0.0, _mud - delta * 0.002)
+		_set_param(&"mud_amount", _mud)
+	if world.radiation.has(entity_id):
+		_set_param(&"contamination", clampf(world.radiation.contamination[entity_id] / 2000.0, 0.0, 1.0))
+	_aim_turret(world, delta)
 	if _label == null:
 		return
 	var supp: int = u.suppression[entity_id]
@@ -199,19 +246,63 @@ func refresh(world: SimWorld, show_label: bool) -> void:
 	_label.visible = show_label or hurt or supp >= 300
 
 
+## Turret follows the sim's current target (slot 0); returns to the front otherwise.
+func _aim_turret(world: SimWorld, delta: float) -> void:
+	if _turret == null or not world.weapons.has(entity_id):
+		return
+	var tgt: int = world.weapons.target[entity_id * WeaponStore.MAX_WEAPONS]
+	var want: float = 0.0
+	if tgt > 0 and world.transform.has(tgt):
+		var tp: Vector3 = SimRunner.sim_to_view(world.transform.x[tgt], world.transform.y[tgt], 0)
+		var d: Vector3 = tp - global_position
+		var world_yaw: float = atan2(-d.x, -d.z)
+		want = wrapf(world_yaw - rotation.y, -PI, PI)
+	_turret.rotation.y = lerp_angle(_turret.rotation.y, want, clampf(delta * 1.6, 0.0, 1.0))
+
+
+## Destroyed: charred hull, turret blown off on main battle tanks (ammo
+## cook-off), fire then a lingering smoke column. Stays for the whole match.
+func make_wreck(fx: Effects) -> void:
+	wrecked = true
+	if _ring != null:
+		_ring.visible = false
+	if _label != null:
+		_label.visible = false
+	_burn = 1.0
+	_set_param(&"burn", 1.0)
+	_set_param(&"mud_amount", 0.6)
+	if _turret != null and def.role == "mbt" and (entity_id % 3) != 0:
+		_turret.position += Vector3(1.2, 0.4, 0.8)
+		_turret.rotation = Vector3(0.35, _turret.rotation.y + 0.9, -0.5)
+	elif _turret != null:
+		_turret.rotation.y += 0.5
+		var gun: Node3D = _turret.get_node_or_null("Gun") as Node3D
+		if gun != null:
+			gun.rotation.x = -0.12
+	rotation.z = 0.03
+	if fx != null:
+		fx.attach_wreck_fire(self, def.size_class == UnitStats.SIZE_LARGE)
+
+
+func _process(delta: float) -> void:
+	if wrecked and _burn > 0.7:
+		_burn = maxf(0.7, _burn - delta * 0.004)
+		_set_param(&"burn", _burn)
+
+
 func _refresh_structure(world: SimWorld, show_label: bool) -> void:
 	var s: StructureStore = world.structures
 	var complete: bool = s.is_complete(entity_id)
-	if complete != _complete:
-		_complete = complete
-		_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED if complete else BaseMaterial3D.TRANSPARENCY_ALPHA
 	var text: String = ""
 	if not complete:
 		var total: int = maxi(1, def.build_time_ticks * 100)
 		var pct: int = 100 - s.build_left[entity_id] * 100 / total
-		_material.albedo_color.a = 0.25 + 0.6 * pct / 100.0
+		_set_param(&"build_alpha", 0.15 + 0.85 * pct / 100.0)
 		text = "%s %d%%" % [def.display_name, pct]
-	elif def.role == "depot_objective":
+	elif complete != _complete:
+		_set_param(&"build_alpha", 1.0)
+	_complete = complete
+	if complete and def.role == "depot_objective":
 		var holder: int = s.holder_team[entity_id]
 		if _flag_mat != null:
 			_flag_mat.albedo_color = FLAG_COLORS[holder] if holder >= 0 else FLAG_COLORS[3]
@@ -220,7 +311,7 @@ func _refresh_structure(world: SimWorld, show_label: bool) -> void:
 			text += " capturing %d%%" % (s.capture_progress[entity_id] * 100 / maxi(1, Economy.ticks(world, "capture_s")))
 		if holder >= 0:
 			text += "  stock %d%s" % [s.stock[entity_id], "" if s.connected[entity_id] == 1 else "  (no route)"]
-	else:
+	elif complete:
 		var q: PackedInt32Array = s.get_queue(entity_id)
 		if not q.is_empty():
 			text = "%s: %s (%d)" % [def.display_name, world.defs.units[q[0]].display_name, q.size()]
