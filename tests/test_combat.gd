@@ -52,9 +52,37 @@ func test_infantry_hit_kills_soldiers_and_suppresses() -> void:
 	var mg: WeaponStats = w.defs.weapon("ec_pkm")
 	for i: int in range(4):
 		Combat.apply_hit(w, sq, mg, 100000, 500000, 0)
-	assert_true(w.units.members_alive[sq] < 9)
+	# hit soldiers are killed or go down (out of the fight until treated)
+	assert_true(w.squads.firers(sq) < 9)
 	assert_true(w.units.suppression[sq] >= 4 * mg.suppression - 1)
 	assert_true(w.units.morale[sq] < w.defs.unit("ec_motor_rifle").morale)
+
+
+## Badly wounded soldiers go down, a buddy drags and treats them; untreated
+## they bleed out. Positions spread: soldiers don't share the squad's spot.
+func test_soldiers_spread_go_down_and_get_treated() -> void:
+	var sq: int = SimFixture.spawn(w, "ec_motor_rifle", 1, 500, 500)
+	for i: int in range(40):
+		w.step()
+	var s: SquadStore = w.squads
+	var base: int = sq * SquadStore.MAX_MEMBERS
+	var spread: bool = false
+	for m: int in range(1, 9):
+		if s.mx[base + m] != s.mx[base] or s.my[base + m] != s.my[base]:
+			spread = true
+	assert_true(spread, "soldiers take their own spots")
+	var def: UnitStats = w.def_of(sq)
+	Combat.wound_member(w, sq, 4, def.hp * 7 / 10, 0)
+	assert_eq(s.state[base + 4], SquadStore.STATE_DOWN)
+	assert_eq(s.firers(sq), 8)
+	var treated: bool = false
+	for j: int in range(SoldierSystem.BLEED_TICKS - 50):
+		w.step()
+		if s.state[base + 4] == SquadStore.STATE_OK:
+			treated = true
+			break
+	assert_true(treated, "a buddy dragged and treated him before he bled out")
+	assert_eq(w.units.members_alive[sq], 9)
 
 
 func test_squad_destroyed_when_all_members_die() -> void:

@@ -115,6 +115,7 @@ func _init(p_seed: int, p_defs: DefDb, p_grid: SimGrid) -> void:
 		signals.append(SignalIntel.new())
 	_systems.append(AiSystem.new())          # 2
 	_systems.append(MovementSystem.new())    # 3
+	_systems.append(SoldierSystem.new())     # 3b: soldiers move on their own around the squad
 	_systems.append(VisionSystem.new())      # 4
 	_systems.append(SignalSystem.new())      # 5
 	_systems.append(WeaponSystem.new())      # 6

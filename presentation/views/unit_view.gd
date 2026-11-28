@@ -23,6 +23,11 @@ var _ring_mat: StandardMaterial3D
 var _label: Label3D
 var _figures: Array[Node3D] = []
 var _figure_base: Array[Vector3] = []
+## Animated soldiers, one per squad member (index = sim soldier index).
+var _rigs: Array[SoldierRig] = []
+var _rig_fired: PackedInt32Array = PackedInt32Array()
+var _rig_placed: PackedByteArray = PackedByteArray()
+const RIG_PARTS: Array[String] = ["RigTorso", "RigHead", "RigUpperArm", "RigForearm", "RigThigh", "RigShin", "RigRifle", "RigWeaponB"]
 var _geoms: Array[GeometryInstance3D] = []
 var _turret: Node3D
 var _shown_members: int = -1
@@ -100,6 +105,9 @@ func _fallback_box() -> Node3D:
 ## Soldiers in a loose, slightly irregular file; SoldierA riflemen, SoldierB
 ## support gunner, Prop (mortar / ATGM post) beside the squad leader.
 func _build_squad() -> void:
+	if model.get_node_or_null("RigTorso") != null:
+		_build_rigs()
+		return
 	var a: MeshInstance3D = model.get_node_or_null("SoldierA") as MeshInstance3D
 	var b: MeshInstance3D = model.get_node_or_null("SoldierB") as MeshInstance3D
 	var prop: MeshInstance3D = model.get_node_or_null("Prop") as MeshInstance3D
@@ -128,6 +136,81 @@ func _build_squad() -> void:
 		b.visible = false
 	if prop != null:
 		prop.position = Vector3(spread * 0.9, 0, spread * 0.3)
+
+
+## Each soldier is his own animated rig, placed in the world from his sim
+## position (top level: not dragged along by the squad anchor).
+func _build_rigs() -> void:
+	var meshes: Dictionary = {}
+	for n: String in RIG_PARTS:
+		var mi: MeshInstance3D = model.get_node_or_null(n) as MeshInstance3D
+		if mi != null:
+			meshes[n] = mi.mesh
+			mi.visible = false
+	for n2: String in ["SoldierA", "SoldierB"]:
+		var old: Node3D = model.get_node_or_null(n2) as Node3D
+		if old != null:
+			old.visible = false
+	var mat: Material = ModelLibrary.unit_material(ModelLibrary.faction_row(faction), ModelLibrary.camo_style(faction))
+	for m: int in range(maxi(1, def.members)):
+		var r: int = SquadStore.role_for(def, m)
+		var rig: SoldierRig = SoldierRig.new()
+		rig.build(meshes, mat, r == SquadStore.ROLE_GUNNER or r == SquadStore.ROLE_AT)
+		add_child(rig)
+		rig.top_level = true
+		rig.visible = false
+		_rigs.append(rig)
+		_rig_fired.append(-1000)
+		_rig_placed.append(0)
+	var prop: MeshInstance3D = model.get_node_or_null("Prop") as MeshInstance3D
+	if prop != null:
+		prop.position = Vector3(2.5, 0, 1.0)
+
+
+func _refresh_rigs(world: SimWorld, terrain: TerrainView, delta: float) -> void:
+	var s: SquadStore = world.squads
+	var engaged: bool = false
+	for slot: int in range(def.weapons.size()):
+		if world.weapons.target[entity_id * WeaponStore.MAX_WEAPONS + slot] > 0:
+			engaged = true
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	for m: int in range(_rigs.size()):
+		var rig: SoldierRig = _rigs[m]
+		var k: int = entity_id * SquadStore.MAX_MEMBERS + m
+		if s.member_hp[k] <= 0:
+			if rig.visible and _rig_placed[m] == 1 and visible:
+				Effects.drop_body(rig)
+			rig.visible = false
+			_rig_placed[m] = 2
+			continue
+		var target: Vector3 = SimRunner.sim_to_view(s.mx[k], s.my[k], 0)
+		target.y = terrain.height_at(target) if terrain != null else 0.0
+		var spd: float = 0.0
+		if _rig_placed[m] == 0:
+			rig.global_position = target
+			rig.rotation.y = SimRunner.heading_to_yaw(s.heading[k])
+			_rig_placed[m] = 1
+		else:
+			var old: Vector3 = rig.global_position
+			var nw: Vector3 = old.lerp(target, clampf(delta * 8.0, 0.0, 1.0))
+			nw.y = target.y
+			spd = Vector2(nw.x - old.x, nw.z - old.z).length() / maxf(delta, 0.001)
+			rig.global_position = nw
+			rig.rotation.y = lerp_angle(rig.rotation.y, SimRunner.heading_to_yaw(s.heading[k]), clampf(delta * 8.0, 0.0, 1.0))
+		rig.visible = true
+		var wounded: bool = s.state[k] == SquadStore.STATE_DOWN
+		var treating: bool = s.task[k] == SquadStore.TASK_TREAT
+		var dragging: bool = false
+		if s.task[k] == SquadStore.TASK_DRAG:
+			var v: int = entity_id * SquadStore.MAX_MEMBERS + s.task_arg[k]
+			dragging = FixedMath.length2(s.mx[v] - s.mx[k], s.my[v] - s.my[k]) <= SoldierSystem.REACH_MM
+		if s.fired[k] != _rig_fired[m]:
+			_rig_fired[m] = s.fired[k]
+			if s.fired[k] >= world.tick - 3:
+				rig.fire()
+				if cam != null and cam.global_position.distance_to(rig.global_position) < 450.0 and Effects.current != null:
+					Effects.current.muzzle_flash(rig.muzzle(), false)
+		rig.animate(delta, spd, s.posture[k], engaged and s.task[k] == SquadStore.TASK_NONE, wounded, dragging, treating)
 
 
 func _build_ring() -> void:
@@ -243,7 +326,9 @@ func refresh(world: SimWorld, show_label: bool, terrain: TerrainView, delta: flo
 		return
 	var moved: float = 0.0 if _last_pos == Vector3.INF else Vector2(position.x - _last_pos.x, position.z - _last_pos.z).length()
 	_last_pos = position
-	if def.is_infantry:
+	if def.is_infantry and not _rigs.is_empty():
+		_refresh_rigs(world, terrain, delta)
+	elif def.is_infantry:
 		if _shown_members != u.members_alive[entity_id]:
 			var was: int = _shown_members
 			_shown_members = u.members_alive[entity_id]
@@ -336,6 +421,9 @@ func _aim_turret(world: SimWorld, delta: float) -> void:
 func drop_bodies() -> void:
 	if not visible:
 		return
+	for r: SoldierRig in _rigs:
+		if r.visible:
+			Effects.drop_body(r)
 	for f: Node3D in _figures:
 		if f.visible:
 			Effects.drop_body(f)

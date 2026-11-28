@@ -14,6 +14,9 @@ const FRONT_ARC: int = 8192
 const REAR_ARC: int = 24576
 
 const MORALE_LOSS_PER_DEATH: int = 90
+## How exposed a soldier is to aimed fire / to a burst, by posture (stand, kneel, prone).
+const EXPOSURE: Array[int] = [1000, 700, 450]
+const BLAST_POSTURE: Array[int] = [1000, 800, 450]
 const SMOKE_ROUND_RADIUS_MM: int = 25000
 const SMOKE_ROUND_TICKS: int = 450
 
@@ -76,6 +79,17 @@ static func hit_chance(world: SimWorld, shooter: int, target: int, w: WeaponStat
 static func infantry_cover(world: SimWorld, target: int, td: UnitStats) -> int:
 	if not td.is_infantry:
 		return 0
+	var sq: SquadStore = world.squads
+	if sq.has(target) and sq.placed[target] == 1:
+		var sum: int = 0
+		var n: int = 0
+		for m: int in range(SquadStore.MAX_MEMBERS):
+			var k: int = target * SquadStore.MAX_MEMBERS + m
+			if sq.member_hp[k] > 0:
+				sum += sq.cover[k]
+				n += 1
+		if n > 0:
+			return mini(850, sum / n + FieldSystem.dug_in_bonus(world, target))
 	var x: int = world.transform.x[target]
 	var y: int = world.transform.y[target]
 	var cover: int = maxi(TerrainTable.COVER[world.grid.terrain_at(x, y)], world.fortification_cover(x, y, true))
@@ -92,9 +106,8 @@ static func apply_hit(world: SimWorld, target: int, w: WeaponStats, sx: int, sy:
 	u.last_attacker[target] = shooter
 	if td.is_infantry:
 		var hits: int = 1 + w.blast_radius_mm / 3000
-		var cover: int = infantry_cover(world, target, td)
 		for i: int in range(hits):
-			_wound_random_member(world, target, w.inf_damage * (1000 - cover / 2) / 1000, shooter)
+			_wound_random_member(world, target, w.inf_damage, shooter, true)
 		add_suppression(world, target, w.suppression)
 	else:
 		var face: int = facing(world.transform.heading[target], world.transform.x[target], world.transform.y[target], sx, sy)
@@ -137,41 +150,90 @@ static func _kill_random_crew(world: SimWorld, target: int) -> void:
 	world.units.crew[target] = mask & ~(1 << pick)
 
 
-static func _wound_random_member(world: SimWorld, target: int, dmg: int, shooter: int) -> void:
+## A hit on the squad lands on one soldier, more likely an exposed one:
+## weighted by (1 - his cover) and posture (standing > kneeling > prone).
+## With use_cover, his cover also softens the wound.
+static func _wound_random_member(world: SimWorld, target: int, dmg: int, shooter: int, use_cover: bool = false) -> void:
 	var u: UnitStore = world.units
 	if u.members_alive[target] <= 0:
 		return
-	var pick: int = world.rng.range_int(0, u.members_alive[target] - 1)
+	var sq: SquadStore = world.squads
 	var base: int = target * SquadStore.MAX_MEMBERS
+	var weights: PackedInt32Array = PackedInt32Array()
+	weights.resize(SquadStore.MAX_MEMBERS)
+	var total: int = 0
 	for m: int in range(SquadStore.MAX_MEMBERS):
-		if world.squads.member_hp[base + m] <= 0:
+		var k: int = base + m
+		if sq.member_hp[k] <= 0:
 			continue
-		if pick == 0:
-			world.squads.member_hp[base + m] -= dmg
-			if world.squads.member_hp[base + m] <= 0:
-				world.squads.member_hp[base + m] = 0
-				u.members_alive[target] -= 1
-				u.morale[target] = maxi(0, u.morale[target] - MORALE_LOSS_PER_DEATH)
-				world.emit(SimEvent.Type.SOLDIER_KILLED, target, shooter, u.members_alive[target])
-				if world.is_unit(shooter):
-					Veterancy.award(world, shooter, Veterancy.XP_CASUALTY)
-				if u.members_alive[target] <= 0:
-					_credit_kill(world, shooter)
-					world.destroy_entity(target)
+		var wgt: int = (1100 - sq.cover[k]) * EXPOSURE[sq.posture[k]] / 1000
+		if sq.state[k] == SquadStore.STATE_DOWN:
+			wgt = wgt / 2
+		weights[m] = maxi(1, wgt)
+		total += weights[m]
+	var pick: int = world.rng.range_int(0, total - 1)
+	for m2: int in range(SquadStore.MAX_MEMBERS):
+		if weights[m2] == 0:
+			continue
+		if pick < weights[m2]:
+			var d: int = dmg * (1000 - sq.cover[base + m2] / 2) / 1000 if use_cover else dmg
+			wound_member(world, target, m2, d, shooter)
 			return
-		pick -= 1
+		pick -= weights[m2]
+
+
+## Damage soldier m: he dies at 0 hp; badly hurt, he goes down.
+static func wound_member(world: SimWorld, target: int, m: int, dmg: int, shooter: int) -> void:
+	var sq: SquadStore = world.squads
+	var k: int = target * SquadStore.MAX_MEMBERS + m
+	if sq.member_hp[k] <= 0:
+		return
+	sq.member_hp[k] -= dmg
+	if sq.member_hp[k] <= 0:
+		_die(world, target, m, shooter)
+		return
+	var td: UnitStats = world.def_of(target)
+	if sq.state[k] == SquadStore.STATE_OK and sq.member_hp[k] * 1000 <= td.hp * SoldierSystem.DOWN_HP_PERMILLE:
+		sq.state[k] = SquadStore.STATE_DOWN
+		sq.timer[k] = 0
+		sq.task[k] = SquadStore.TASK_NONE
+		world.units.morale[target] = maxi(0, world.units.morale[target] - MORALE_LOSS_PER_DEATH / 2)
+		world.emit(SimEvent.Type.SOLDIER_DOWN, target, shooter, m)
+
+
+## Soldier m dies (x of the SOLDIER_KILLED event = his index). Anyone helping
+## him lets go; whoever he was helping loses his helper.
+static func kill_member(world: SimWorld, target: int, m: int, shooter: int) -> void:
+	if world.squads.member_hp[target * SquadStore.MAX_MEMBERS + m] > 0:
+		_die(world, target, m, shooter)
+
+
+static func _die(world: SimWorld, target: int, m: int, shooter: int) -> void:
+	var u: UnitStore = world.units
+	var sq: SquadStore = world.squads
+	var base: int = target * SquadStore.MAX_MEMBERS
+	sq.member_hp[base + m] = 0
+	sq.state[base + m] = SquadStore.STATE_OK
+	sq.task[base + m] = SquadStore.TASK_NONE
+	for o: int in range(SquadStore.MAX_MEMBERS):
+		if sq.task[base + o] != SquadStore.TASK_NONE and sq.task_arg[base + o] == m:
+			sq.task[base + o] = SquadStore.TASK_NONE
+	u.members_alive[target] -= 1
+	u.morale[target] = maxi(0, u.morale[target] - MORALE_LOSS_PER_DEATH)
+	world.emit(SimEvent.Type.SOLDIER_KILLED, target, shooter, u.members_alive[target], m, 0)
+	if world.is_unit(shooter):
+		Veterancy.award(world, shooter, Veterancy.XP_CASUALTY)
+	if u.members_alive[target] <= 0:
+		_credit_kill(world, shooter)
+		world.destroy_entity(target)
 
 
 ## Kills the first living squad member (no RNG; used for bail-out losses).
 static func kill_one_member(world: SimWorld, target: int) -> void:
-	var u: UnitStore = world.units
 	var base: int = target * SquadStore.MAX_MEMBERS
 	for m: int in range(SquadStore.MAX_MEMBERS):
 		if world.squads.member_hp[base + m] > 0:
-			world.squads.member_hp[base + m] = 0
-			u.members_alive[target] -= 1
-			if u.members_alive[target] <= 0:
-				world.destroy_entity(target)
+			kill_member(world, target, m, 0)
 			return
 
 
@@ -210,16 +272,25 @@ static func apply_blast(world: SimWorld, x: int, y: int, w: WeaponStats, shooter
 		world.units.last_hit_tick[id] = world.tick
 		world.units.last_attacker[id] = shooter
 		add_suppression(world, id, w.suppression * (2 * r - d) / (2 * r))
-		if d > r:
-			continue
 		if td.is_infantry:
-			var cover: int = infantry_cover(world, id, td)
-			var chance: int = 1000 * (r - d) / r * (1000 - cover) / 1000
-			for m: int in range(world.units.members_alive[id]):
+			# each soldier at his own distance from the burst, in his own cover
+			var sq: SquadStore = world.squads
+			var dug: int = FieldSystem.dug_in_bonus(world, id)
+			for m: int in range(SquadStore.MAX_MEMBERS):
+				var k: int = id * SquadStore.MAX_MEMBERS + m
+				if sq.member_hp[k] <= 0:
+					continue
+				var dm: int = FixedMath.length2(sq.mx[k] - x, sq.my[k] - y) if sq.placed[id] == 1 else d
+				if dm > r:
+					continue
+				var cov: int = mini(850, sq.cover[k] + dug)
+				var chance: int = 1000 * (r - dm) / r * (1000 - cov) / 1000 * BLAST_POSTURE[sq.posture[k]] / 1000
 				if world.rng.chance_permille(chance):
-					_wound_random_member(world, id, w.inf_damage, shooter)
+					wound_member(world, id, m, w.inf_damage, shooter)
 					if not world.is_unit(id):
 						break
-		else:
-			var pen: int = w.penetration if d <= td.radius_mm else w.penetration * (r - d) / r
-			_hit_vehicle(world, id, td, pen, w.damage, 0, FACE_TOP, shooter)
+			continue
+		if d > r:
+			continue
+		var pen: int = w.penetration if d <= td.radius_mm else w.penetration * (r - d) / r
+		_hit_vehicle(world, id, td, pen, w.damage, 0, FACE_TOP, shooter)

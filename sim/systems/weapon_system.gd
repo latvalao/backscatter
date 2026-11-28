@@ -35,7 +35,7 @@ func step(world: SimWorld, tick: int) -> void:
 static func can_operate_weapons(world: SimWorld, id: int, def: UnitStats) -> bool:
 	var u: UnitStore = world.units
 	if def.is_infantry:
-		return u.members_alive[id] > 0
+		return world.squads.firers(id) > 0
 	if def.has_crew(UnitStats.CREW_GUNNER) and (u.crew[id] & UnitStats.CREW_GUNNER) == 0:
 		return false
 	return (u.damage[id] & UnitStore.DMG_TURRET) == 0
@@ -191,7 +191,9 @@ func _fire(world: SimWorld, id: int, def: UnitStats, slot: int, w: WeaponStats, 
 		return
 	var shots: int = w.burst
 	if def.is_infantry:
-		shots = maxi(1, (w.burst * world.units.members_alive[id] + def.members - 1) / def.members)
+		var firing: int = world.squads.firers(id)
+		shots = maxi(1, (w.burst * firing + def.members - 1) / def.members)
+		world.squads.mark_fired(id, tick, maxi(1, shots * firing / maxi(1, w.burst)))
 	for s: int in range(shots):
 		if not world.is_unit(tgt):
 			break

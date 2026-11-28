@@ -166,6 +166,9 @@ No tech tree in v1 — production buildings unlock their unit lists; some units 
   - `pen < armour` → non-penetrating: small damage, suppression.
 - **Accuracy:** base accuracy × range falloff × moving penalty × target size × veterancy × suppression.
 - **Infantry:** squads of individual soldiers (HP each), **suppression** (0–100) reduces accuracy and movement; at high suppression the squad pins or retreats. **Morale** per faction quality.
+  - Soldiers act on their own inside the squad (owner request, modelled on Defilade / Ebbtide): each has his own position, facing, posture (stand / kneel / prone), cover and role (leader, gunner, AT, medic, rifleman). The squad is the unit you command; when it stops, every soldier takes the best free cover spot nearby, support weapons first. Aimed fire is more likely to hit exposed, standing soldiers; a burst checks each soldier at his own distance and posture.
+  - Badly wounded soldiers go down instead of dying outright. A buddy (the medic first) drags them into cover and treats them; untreated they bleed out after about 90 s. Soldiers who are down or helping someone don't fire. (`sim/systems/soldier_system.gd`)
+  - Next: AI overhaul built on this: individual target choice, bounding moves, suppressing fire roles.
 - **Indirect fire:** artillery fires at a map position with dispersion; requires a spotter's LOS or a pre-planned grid. Firing artillery creates a large signature pulse (counter-battery).
 - **ATGMs:** fire-and-forget (Coalition) vs wire-guided (Eastern: operator must keep LOS until impact; suppressing operator can miss).
 - **Smoke:** blocks LOS (not thermal for Coalition thermal-equipped units — reduces it).

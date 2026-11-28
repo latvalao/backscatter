@@ -421,22 +421,20 @@ static func drop_body(fig: Node3D) -> void:
 
 
 func _add_body(fig: Node3D) -> void:
-	var src: MeshInstance3D = fig as MeshInstance3D
-	if src == null or src.mesh == null:
-		return
-	var b: MeshInstance3D = MeshInstance3D.new()
-	b.mesh = src.mesh
-	var m: Material = src.material_override
-	if m != null and m.next_pass != null:
-		var key: int = m.get_instance_id()
-		if not _corpse_mats.has(key):
-			var plain: Material = m.duplicate()
-			plain.next_pass = null
-			(plain as ShaderMaterial).set_shader_parameter("rim", 0.0)
-			_corpse_mats[key] = plain
-		m = _corpse_mats[key]
-	b.material_override = m
-	add_child(b)
+	var b: Node3D
+	if fig is SoldierRig:
+		var rig: SoldierRig = fig as SoldierRig
+		b = rig.corpse(_plain(rig.get("_mat") as Material))
+		add_child(b)
+	else:
+		var src: MeshInstance3D = fig as MeshInstance3D
+		if src == null or src.mesh == null:
+			return
+		var mi: MeshInstance3D = MeshInstance3D.new()
+		mi.mesh = src.mesh
+		mi.material_override = _plain(src.material_override)
+		add_child(mi)
+		b = mi
 	b.global_transform = fig.global_transform
 	b.rotation.x = 0.0
 	var vel: Vector3 = Vector3.ZERO
@@ -456,10 +454,30 @@ func _add_body(fig: Node3D) -> void:
 			spin = Vector3(8.0 + h * 10.0, (h - 0.5) * 12.0, (0.5 - h) * 9.0)
 			air = true
 			break
-	_bodies.append({"node": b, "vel": vel, "spin": spin, "t": BODY_TIME, "air": air, "fall": 0.0, "dir": 1.0 if h > 0.5 else -1.0})
+	var fall: float = 0.0
+	var dir: float = 1.0 if h > 0.5 else -1.0
+	if not air and fig is SoldierRig and (fig as SoldierRig).lying:
+		fall = 1.0
+		dir = 1.0
+		b.rotation.x = -PI * 0.5
+	_bodies.append({"node": b, "vel": vel, "spin": spin, "t": BODY_TIME, "air": air, "fall": fall, "dir": dir})
 	if _bodies.size() > MAX_BODIES:
 		var old: Dictionary = _bodies.pop_front()
 		(old["node"] as Node3D).queue_free()
+
+
+## The material without the live-unit outline pass and rim light (cached).
+func _plain(m: Material) -> Material:
+	if m == null or m.next_pass == null:
+		return m
+	var key: int = m.get_instance_id()
+	if not _corpse_mats.has(key):
+		var plain: Material = m.duplicate()
+		plain.next_pass = null
+		if plain is ShaderMaterial:
+			(plain as ShaderMaterial).set_shader_parameter("rim", 0.0)
+		_corpse_mats[key] = plain
+	return _corpse_mats[key]
 
 
 func _update_bodies(delta: float) -> void:

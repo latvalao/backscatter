@@ -181,7 +181,7 @@ in CI. Status: ✅ done · 🟡 in progress · ⬜ not started.
 - `tools/beauty_corner.gd` renders the V0 scene; `tools/model_sheet.gd` renders model line-ups.
   Shots: `docs/v_beauty_*.jpg`, `docs/v_models_*.jpg`.
 - **Open**: V5 staff-map zoom + isoline dosimetry + DF ellipses; V6 photo mode; x-ray silhouettes
-  (team ring is drawn through occluders instead); infantry animation rig; illumination flares,
+  (team ring is drawn through occluders instead); illumination flares,
   MLRS trails, decon spray VFX, fallen/burnt trees; performance profiling on real GPUs (only
   CPU-rendered here). Health bars are still text labels.
 
@@ -191,6 +191,14 @@ from the list. Tests: test_command_basics, test_combat_depth, test_air_support,
 test_smart_orders, test_modes; the smoke scene also covers save/load, the replay viewer and
 Containment. Since Phase 2 the passive side digs in, so `test_slow_normal_ai_beats_passive_player`
 runs to 14500 ticks (Normal wins at about 13500).
+
+## Independent soldiers + animation rig ✅
+SoldierSystem gives every soldier his own position, cover, posture, role and state (down /
+dragged / treated / bleeding out); Combat hits soldiers by exposure and blasts by their own
+distance. Presentation: SoldierRig (jointed forged limbs, procedural walk / run / kneel /
+prone-crawl / aim / recoil / wounded / dragging / treating / dead). Real-scale houses, units
+at 1.15x. Sound rewritten (seamless loops, layered shots). Sim cost: the AI-vs-passive slow
+test went from ~6 to ~10 ms per tick. Next: AI overhaul on top of the soldiers.
 
 ## M8 — Modes & content ⬜ (next — after the graphics pass)
 (Broken down when the previous milestone lands — see DESIGN.md §12 for scope.)

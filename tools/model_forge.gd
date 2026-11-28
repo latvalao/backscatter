@@ -45,7 +45,9 @@ func _save_model(md: ForgeModels.Model, dir: String) -> void:
 	for k: String in md.meta.keys():
 		root.set_meta(k, md.meta[k])
 	var tris: int = 0
-	var names: Dictionary = {"hull": "Hull", "soldier_a": "SoldierA", "soldier_b": "SoldierB", "prop": "Prop"}
+	var names: Dictionary = {"hull": "Hull", "soldier_a": "SoldierA", "soldier_b": "SoldierB", "prop": "Prop",
+		"rig_torso": "RigTorso", "rig_head": "RigHead", "rig_uarm": "RigUpperArm", "rig_farm": "RigForearm",
+		"rig_thigh": "RigThigh", "rig_shin": "RigShin", "rig_rifle": "RigRifle", "rig_weapon_b": "RigWeaponB"}
 	for part: String in md.parts.keys():
 		var fm: ForgeMesh = md.parts[part]
 		tris += fm.tri_count()
@@ -65,7 +67,7 @@ func _save_model(md: ForgeModels.Model, dir: String) -> void:
 			continue
 		var mi: MeshInstance3D = MeshInstance3D.new()
 		mi.name = names.get(part, part)
-		mi.mesh = fm.commit(md.dirt_height, md.rust)
+		mi.mesh = fm.commit(-1.0 if part.begins_with("rig_") else md.dirt_height, md.rust)
 		root.add_child(mi)
 		mi.owner = root
 	if md.parts.has("turret"):

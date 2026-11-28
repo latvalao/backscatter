@@ -11,7 +11,7 @@ enum Type {
 	IMPACT,          # other = shooter, value = weapon index, x/y = impact point
 	PENETRATED,      # entity = target, other = shooter, value = face
 	BOUNCED,         # entity = target, other = shooter, value = face
-	SOLDIER_KILLED,  # entity = squad, other = shooter, value = members left
+	SOLDIER_KILLED,  # entity = squad, other = shooter, value = members left, x = soldier index
 	SMOKE,           # x/y = cloud centre, value = radius
 	MISSED,          # entity = shooter, other = target, value = weapon index, x/y = miss point
 	BUILT,           # entity = structure, value = def index
@@ -34,6 +34,7 @@ enum Type {
 	FLARE,           # x/y = flare position, other = firing unit
 	SUPPORT_CALLED,  # entity = caller, other = player, value = kind, x/y = target
 	MISSION,         # other = 0 message / 1 objective added / 2 done / 3 failed, value = index
+	SOLDIER_DOWN,    # entity = squad, other = shooter, value = soldier index (badly wounded)
 }
 
 var kind: Type

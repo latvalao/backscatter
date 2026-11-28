@@ -514,6 +514,7 @@ static func squad(id: String, row: int, role: String, faction: String) -> Model:
 			soldier(b, helmet, "sprayer", false, true, false)
 		_:
 			soldier(b, helmet, "mg", true, mask, false)
+	_rig(md, row, helmet, mask, id == "nc_recon_team" or id == "ec_recon_sqd", role)
 	if role == "indirect":
 		var pr: ForgeMesh = md.part("prop", row)
 		pr.cyl(Vector3(0, 0.05, 0), Vector3(0, 0.15, 0), 0.4, 0.38, 8, METAL)
@@ -530,6 +531,64 @@ static func squad(id: String, row: int, role: String, faction: String) -> Model:
 		pr2.cyl(Vector3(0, 0.95, 0.5), Vector3(0, 1.05, -0.9), 0.1, 0.1, 7, CAMO)
 		pr2.box(Vector3(0.18, 0.8, 0.2), Vector3(0.3, 0.3, 0.4), CAMO_DARK, 0.03)
 	return md
+
+
+## Jointed soldier for the animated rig (UnitView builds the skeleton):
+## each limb is its own mesh with the pivot at its upper joint, hanging down
+## -Y; the torso stands up +Y from the hips; weapons point -Z from the grip.
+static func _rig(md: Model, row: int, helmet: String, mask: bool, boonie: bool, role: String) -> void:
+	var t: ForgeMesh = md.part("rig_torso", row)
+	t.box(Vector3(0, -0.06, 0.0), Vector3(0.36, 0.3, 0.22), UNIFORM, 0.04)
+	t.box(Vector3(0, 0.12, 0.0), Vector3(0.4, 0.46, 0.24), UNIFORM, 0.05, Vector2(1.1, 1.0))
+	t.box(Vector3(0, 0.16, 0.0), Vector3(0.44, 0.36, 0.3), GEAR, 0.05, Vector2(1.04, 1.0))
+	if role == "support":
+		t.cyl(Vector3(0, 0.12, 0.26), Vector3(0, 0.62, 0.26), 0.15, 0.15, 7, CAMO_3)
+	else:
+		t.box(Vector3(0, 0.18, 0.2), Vector3(0.32, 0.4, 0.18), GEAR, 0.05, Vector2(0.9, 0.9))
+	t.box(Vector3(0, 0.02, -0.02), Vector3(0.42, 0.08, 0.27), GEAR, 0.01)
+	var h: ForgeMesh = md.part("rig_head", row)
+	h.cyl(Vector3(0, 0.0, 0.0), Vector3(0, 0.09, 0.0), 0.06, 0.06, 5, SKIN)
+	h.blob(Vector3(0, 0.2, 0.0), Vector3(0.1, 0.12, 0.11), 7, 4, SKIN if not mask else RUBBER)
+	if mask:
+		h.cyl(Vector3(0, 0.14, -0.08), Vector3(0, 0.12, -0.17), 0.05, 0.045, 5, RUBBER)
+	match helmet:
+		"modern":
+			h.blob(Vector3(0, 0.22, 0.01), Vector3(0.14, 0.13, 0.15), 8, 4, HELMET, false, true)
+			h.box(Vector3(0, 0.19, 0.0), Vector3(0.29, 0.04, 0.31), HELMET, 0.01)
+		"steel":
+			h.blob(Vector3(0, 0.23, 0.0), Vector3(0.135, 0.12, 0.14), 8, 4, HELMET, false, true)
+		_:
+			if boonie:
+				h.blob(Vector3(0, 0.24, 0.0), Vector3(0.13, 0.1, 0.13), 7, 4, HELMET, false, true)
+			else:
+				h.blob(Vector3(0, 0.24, 0.0), Vector3(0.12, 0.08, 0.12), 7, 4, CAMO_3, false, true)
+				h.box(Vector3(0, 0.22, -0.13), Vector3(0.18, 0.02, 0.1), CAMO_3, 0.0)
+	var ua: ForgeMesh = md.part("rig_uarm", row)
+	ua.cyl(Vector3(0, 0.02, 0), Vector3(0, -0.3, 0), 0.065, 0.055, 6, UNIFORM)
+	var fa: ForgeMesh = md.part("rig_farm", row)
+	fa.cyl(Vector3(0, 0.02, 0), Vector3(0, -0.26, 0), 0.055, 0.045, 6, UNIFORM)
+	fa.blob(Vector3(0, -0.3, 0), Vector3(0.045, 0.05, 0.045), 5, 3, SKIN)
+	var th: ForgeMesh = md.part("rig_thigh", row)
+	th.cyl(Vector3(0, 0.03, 0), Vector3(0, -0.45, 0), 0.1, 0.08, 6, UNIFORM)
+	var sh: ForgeMesh = md.part("rig_shin", row)
+	sh.cyl(Vector3(0, 0.02, 0), Vector3(0, -0.4, 0), 0.08, 0.065, 6, UNIFORM)
+	sh.box(Vector3(0, -0.47, -0.04), Vector3(0.12, 0.1, 0.27), RUBBER, 0.02)
+	var r: ForgeMesh = md.part("rig_rifle", row)
+	r.box(Vector3(0, -0.04, -0.12), Vector3(0.05, 0.11, 0.82), METAL, 0.01)
+	r.box(Vector3(0, -0.16, -0.05), Vector3(0.04, 0.13, 0.06), METAL, 0.0)
+	r.box(Vector3(0, -0.12, 0.2), Vector3(0.045, 0.1, 0.22), WOOD, 0.01)
+	var b: ForgeMesh = md.part("rig_weapon_b", row)
+	match role:
+		"at_infantry":
+			b.cyl(Vector3(0, 0.0, 0.55), Vector3(0, 0.0, -0.65), 0.065, 0.065, 7, CAMO_DARK)
+			b.cyl(Vector3(0, 0.0, -0.6), Vector3(0, 0.0, -0.9), 0.12, 0.065, 7, CAMO_DARK)
+		"support":
+			b.cyl(Vector3(0, -0.04, 0.05), Vector3(0, -0.12, -0.6), 0.02, 0.02, 4, METAL)
+		_:
+			b.box(Vector3(0, -0.05, -0.2), Vector3(0.08, 0.14, 1.05), METAL, 0.01)
+			b.box(Vector3(0, -0.17, 0.0), Vector3(0.12, 0.12, 0.12), CAMO_DARK, 0.01)
+			b.cyl(Vector3(0, -0.05, -0.62), Vector3(0.12, -0.45, -0.66), 0.012, 0.012, 3, METAL)
+			b.cyl(Vector3(0, -0.05, -0.62), Vector3(-0.12, -0.45, -0.66), 0.012, 0.012, 3, METAL)
 
 
 ## A ~1.8 m soldier, ~250 tris. weapon: rifle | mg | launcher | sprayer.
