@@ -126,7 +126,7 @@ void fragment() {
 	AO = mix(1.0, ao, 0.7);
 	AO_LIGHT_AFFECT = 0.4;
 	float fres = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
-	EMISSION = emit + vec3(1.0, 0.93, 0.8) * fres * rim * (1.0 - burn);
+	EMISSION = emit + vec3(1.0, 0.93, 0.8) * fres * rim * (1.0 - burn) * (1.0 - smoothstep(170.0, 320.0, length(VERTEX)));
 	if (build_alpha < 0.999) {
 		// under construction: screen-door dissolve keeps the opaque pipeline
 		float d = fract(dot(floor(FRAGCOORD.xy), vec2(0.5, 0.25)) + hash(floor(world_pos * 2.0)) * 0.5);

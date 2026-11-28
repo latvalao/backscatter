@@ -50,6 +50,32 @@ float fbm(vec2 p) {
 	return noise(p) * 0.55 + noise(p * 2.1 + 7.0) * 0.3 + noise(p * 4.3 + 3.0) * 0.15;
 }
 
+
+// Smooth lake mask from the per-cell water flag (cells_tex alpha): a wide
+// blur of bilinear taps (rounds the 8 m cell grid off), then wobbled with
+// noise near the water so shores curve naturally.
+float water_bilerp(vec2 g, ivec2 sz) {
+	ivec2 b = ivec2(floor(g));
+	vec2 t = fract(g);
+	float a00 = texelFetch(cells_tex, clamp(b, ivec2(0), sz - 1), 0).a;
+	float a10 = texelFetch(cells_tex, clamp(b + ivec2(1, 0), ivec2(0), sz - 1), 0).a;
+	float a01 = texelFetch(cells_tex, clamp(b + ivec2(0, 1), ivec2(0), sz - 1), 0).a;
+	float a11 = texelFetch(cells_tex, clamp(b + ivec2(1, 1), ivec2(0), sz - 1), 0).a;
+	return mix(mix(a00, a10, t.x), mix(a01, a11, t.x), t.y);
+}
+
+float shore_weight(vec2 wxz, vec2 map_m) {
+	ivec2 sz = textureSize(cells_tex, 0);
+	vec2 g = vec2(wxz.x, -wxz.y) / map_m * vec2(sz) - 0.5;
+	float w = water_bilerp(g, sz) * 0.36;
+	w += water_bilerp(g + vec2(0.8, 0.0), sz) * 0.16;
+	w += water_bilerp(g - vec2(0.8, 0.0), sz) * 0.16;
+	w += water_bilerp(g + vec2(0.0, 0.8), sz) * 0.16;
+	w += water_bilerp(g - vec2(0.0, 0.8), sz) * 0.16;
+	float near = smoothstep(0.02, 0.25, w) * (1.0 - smoothstep(0.75, 0.98, w));
+	return w + ((noise(wxz * 0.045) - 0.5) * 0.3 + (noise(wxz * 0.3 + 7.0) - 0.5) * 0.08) * near;
+}
+
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_normal = NORMAL;
@@ -173,6 +199,12 @@ void fragment() {
 			}
 		}
 	}
+	// lake shore: wet sand and mud on the banks, darker silt under the shallows
+	float shw = shore_weight(world_pos.xz, map_size_m);
+	float beach = smoothstep(0.22, 0.42, shw);
+	col = mix(col, vec3(0.42, 0.38, 0.29) * (0.85 + 0.3 * fine), beach * (1.0 - smoothstep(0.42, 0.5, shw)) * 0.85);
+	col = mix(col, vec3(0.2, 0.19, 0.15), smoothstep(0.44, 0.55, shw));
+	rough = mix(rough, 0.4, smoothstep(0.38, 0.5, shw));
 	// trail map: tracks (R) and craters / scorch (G)
 	vec2 trail = texture(trail_tex, uv).rg;
 	float soft = clamp(field * 0.6 + bog + forest * 0.4, 0.2, 1.0);

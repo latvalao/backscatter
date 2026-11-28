@@ -74,11 +74,21 @@ static func outline_material() -> ShaderMaterial:
 shader_type spatial;
 render_mode unshaded, cull_front, depth_draw_opaque, shadows_disabled, fog_disabled;
 uniform vec3 ink : source_color = vec3(0.045, 0.042, 0.036);
-uniform float width = 0.0022;
+uniform float width_px = 1.3;
+uniform float fade_start = 170.0;
+uniform float fade_end = 300.0;
+// Pushed out in screen space (a constant ~1 px rim at the silhouette), faded
+// out at long range where the model is only a few pixels and a hull would
+// smear it into a dark blob.
 void vertex() {
 	vec4 vp = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-	float s = length(MODEL_MATRIX[0].xyz);
-	VERTEX += NORMAL * clamp(-vp.z, 20.0, 900.0) * width / max(s, 0.01);
+	vec4 clip = PROJECTION_MATRIX * vp;
+	vec3 vn = normalize((MODELVIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	vec2 n2 = (PROJECTION_MATRIX * vec4(vn, 0.0)).xy;
+	n2 = length(n2) > 1e-5 ? normalize(n2) : vec2(0.0);
+	float px = width_px * (1.0 - smoothstep(fade_start, fade_end, -vp.z));
+	clip.xy += n2 * px * 2.0 / VIEWPORT_SIZE * clip.w;
+	POSITION = clip;
 }
 void fragment() { ALBEDO = ink; }
 """

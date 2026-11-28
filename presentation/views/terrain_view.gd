@@ -61,10 +61,11 @@ func build(p_grid: SimGrid) -> void:
 		var y: int = grid.cell_y(i)
 		if t == TerrainTable.ROAD and _near(x, y, TerrainTable.URBAN, 2):
 			_paved[i] = 1
-		cells.set_pixel(x, y, Color(1.0 if t == TerrainTable.ROAD else 0.0, 1.0 if t == TerrainTable.URBAN else 0.0, float(_paved[i]), 1.0))
+		cells.set_pixel(x, y, Color(1.0 if t == TerrainTable.ROAD else 0.0, 1.0 if t == TerrainTable.URBAN else 0.0, float(_paved[i]), 1.0 if t == TerrainTable.WATER else 0.0))
 	_cells_img = cells
 	_cells_tex = ImageTexture.create_from_image(cells)
 	material.set_shader_parameter("cells_tex", _cells_tex)
+	water_material.set_shader_parameter("cells_tex", _cells_tex)
 	for cy: int in range(0, grid.height, CHUNK):
 		for cx: int in range(0, grid.width, CHUNK):
 			var cw: int = mini(CHUNK, grid.width - cx)
@@ -206,8 +207,19 @@ func _build_chunk(cx0: int, cy0: int, cw: int, ch: int) -> void:
 			var gx: int = cx0 + vx
 			var gy: int = cy0 + vy
 			var y: float = corner_height(gx, gy)
-			if _corner_water(gx, gy):
-				y -= WATER_DROP
+			# lake bed: deeper the more of the corner's cells are water, so the
+			# banks slope in gently instead of dropping off cell by cell
+			# and every corner touching water sits under the waterline, so the
+			# shore shader (not the 8 m cell geometry) draws the waterline
+			var wn: int = 0
+			var lvl: float = INF
+			for o: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+				if _is_water(gx + o.x, gy + o.y):
+					wn += 1
+					lvl = minf(lvl, _water_level(gx + o.x, gy + o.y))
+			if wn > 0:
+				var frac: float = wn / 4.0
+				y = minf(y - WATER_DROP * frac, lvl - 0.3 - WATER_DROP * 0.7 * frac)
 			verts.append(Vector3(gx * cell_m, y, -gy * cell_m))
 			var hl: float = corner_height(gx - 1, gy)
 			var hr: float = corner_height(gx + 1, gy)
@@ -648,7 +660,7 @@ func _build_settlement() -> void:
 		var hk: int = SimRng.hash3(r.position.x, r.position.y, 91)
 		if dist < 7.0:
 			for pc: int in b:
-				_cells_img.set_pixel(grid.cell_x(pc), grid.cell_y(pc), Color(0.0, 1.0, 1.0, 1.0))
+				_cells_img.set_pixel(grid.cell_x(pc), grid.cell_y(pc), Color(0.0, 1.0, 1.0, 0.0))
 		if dist < 7.0 and r.size.x >= 3 and r.size.y >= 3:
 			_place_xf(props, customs, "panel_block", Transform3D(basis.scaled(Vector3.ONE * clampf(maxf(r.size.x, r.size.y) * cell_m / 30.0, 0.8, 1.1)), world_mid), hk)
 			continue
