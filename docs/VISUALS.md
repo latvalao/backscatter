@@ -219,7 +219,7 @@ Parachute illumination flares slowly drifting down, casting moving shadows throu
 
 ## 10. Readability rules (RTS first)
 
-- **Silhouette first:** every unit type recognisable by silhouette at mid zoom. Slightly **exaggerate scale** of vehicles and infantry (≈1.3–1.5×) relative to buildings/trees — dioramas do this too.
+- **Silhouette first:** every unit type recognisable by silhouette at mid zoom. Units are only slightly enlarged (1.15× vehicles; soldiers a touch more) and buildings are real size: the owner found 1.7× units made houses look like miniatures. Readability at range comes from outlines, NATO symbols and animation instead.
 - **Team identity:** small team-coloured ground ring/decal under units, coloured selection brackets, and tactical-symbol icons on hover/zoom — not vehicle paint.
 - **Health/status:** minimal floating bars only when damaged or selected; crew/dose detail in unit card.
 - **Threat cues:** tracers brightly visible (team-tinted), ATGM smoke trails, artillery incoming markers on the ground before impact.

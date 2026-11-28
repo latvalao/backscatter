@@ -33,6 +33,7 @@ var _fade: PackedVector4Array = PackedVector4Array()
 var _paved: PackedByteArray = PackedByteArray()
 var _cells_img: Image
 var _cells_tex: ImageTexture
+var _house_rects: Array[Rect2] = []
 
 
 func build(p_grid: SimGrid) -> void:
@@ -665,11 +666,11 @@ func _build_settlement() -> void:
 			_place_xf(props, customs, "panel_block", Transform3D(basis.scaled(Vector3.ONE * clampf(maxf(r.size.x, r.size.y) * cell_m / 30.0, 0.8, 1.1)), world_mid), hk)
 			continue
 		if dist < 7.0:
-			_place_xf(props, customs, "shop", Transform3D(basis, world_mid), hk)
+			_place_xf(props, customs, "shop", Transform3D(basis.scaled(Vector3.ONE * 1.2), world_mid), hk)
 			continue
 		if not church_done and dist < 12.0 and b.size() >= 6:
 			church_done = true
-			_place_xf(props, customs, "church", Transform3D(Basis(Vector3.UP, PI * 0.5 * (hk & 3)), world_mid), hk)
+			_place_xf(props, customs, "church", Transform3D(Basis(Vector3.UP, PI * 0.5 * (hk & 3)).scaled(Vector3.ONE * 1.25), world_mid), hk)
 			continue
 		_houses(b, props, customs, cell_m, hk)
 	_cells_tex.update(_cells_img)
@@ -731,25 +732,37 @@ func _houses(b: PackedInt32Array, props: Dictionary, customs: Dictionary, cell_m
 		p.y = height_at(p)
 		var to_street: Vector3 = Vector3(street.x, 0, -street.y)
 		if street != Vector2i.ZERO and (x + y) % 2 == 0 and h % 7 != 0:
-			# front (-Z of the model) faces the street, set back behind a front garden
-			var yaw: float = atan2(float(street.x), float(street.y)) + (float(h & 7) - 3.5) * 0.02
+			# real-size house (about 9-11 m), front (-Z of the model) to the street,
+			# set back behind a front garden; skipped if it would overlap another
+			var yaw: float = atan2(float(street.x), float(street.y)) + (float(h & 7) - 3.5) * 0.015
 			var v: int = (h >> 3) % 4
-			var sc: float = (0.72 if v < 2 else 0.8) + float((h >> 6) & 7) * 0.02
-			_place_xf(props, customs, "house_%d" % v, Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), p - to_street * cell_m * 0.1), h)
+			var sc: float = 0.95 + float((h >> 6) & 7) * 0.012
+			var hp: Vector3 = p - to_street * cell_m * 0.12
+			var half: Vector2 = [Vector2(4.9, 5.3), Vector2(7.4, 4.4), Vector2(5.0, 4.9), Vector2(5.2, 5.0)][v] * sc
+			if street.x != 0:
+				half = Vector2(half.y, half.x)
+			var rect: Rect2 = Rect2(hp.x - half.x, hp.z - half.y, half.x * 2.0, half.y * 2.0)
+			var free: bool = true
+			for r0: Rect2 in _house_rects:
+				if r0.intersects(rect):
+					free = false
+					break
+			if free:
+				_house_rects.append(rect)
+				_place_xf(props, customs, "house_%d" % v, Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * sc), hp), h)
+				placed += 1
 			_front(props, customs, p, to_street, street, cell_m, h)
-			placed += 1
 		elif street != Vector2i.ZERO:
+			# between houses: only the front hedge or fence and the odd tree
 			_front(props, customs, p, to_street, street, cell_m, h)
-			if h % 3 == 0:
+			if h % 4 == 0:
 				_place(props, customs, "birch" if h % 2 == 0 else "aspen", x, y, h, cell_m, 0.5)
-			elif h % 4 == 1:
-				_place_xf(props, customs, "shed", Transform3D(Basis(Vector3.UP, float(h & 3) * PI * 0.5), p - to_street * cell_m * 0.2), h)
 		elif h % 3 == 0:
 			_place(props, customs, "birch" if h % 2 == 0 else "aspen", x, y, h, cell_m, 0.55)
 		elif h % 5 == 0:
 			_place_xf(props, customs, "shed", Transform3D(Basis(Vector3.UP, float(h & 3) * PI * 0.5), p), h)
 		elif h % 7 == 1:
-			_place_xf(props, customs, "garages", Transform3D(Basis(Vector3.UP, float(h & 1) * PI * 0.5).scaled(Vector3.ONE * 0.55), p), h)
+			_place_xf(props, customs, "garages", Transform3D(Basis(Vector3.UP, float(h & 1) * PI * 0.5).scaled(Vector3.ONE * 0.8), p), h)
 		for d2: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nx: int = x + d2.x
 			var ny: int = y + d2.y

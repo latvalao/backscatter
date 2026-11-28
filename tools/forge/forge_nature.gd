@@ -119,66 +119,119 @@ static func stump() -> ForgeMesh:
 	return m
 
 
-## Karelian wooden village house.
+## Karelian village houses, built at real size (about 9-11 m): painted board
+## walls with white corner boards, framed windows with glazing bars, eave
+## boards, a brick chimney, door with steps, and per-variant porch, dormer,
+## second storey or extension. Front (-Z) faces the street.
+##   0 one-storey cottage with a glazed porch
+##   1 long one-storey house with a side extension
+##   2 two-storey house with a balcony door
+##   3 one-and-a-half storey house with a dormer and hip-ended roof
 static func house(variant: int) -> ForgeMesh:
 	var m: ForgeMesh = mesh()
-	var w: float = 7.0 if variant == 0 else 9.0
-	var d: float = 6.0
-	var wall: int = ForgeModels.PLANK if variant == 0 else ForgeModels.PLASTER
-	m.box(Vector3(0, -0.5, 0), Vector3(w + 0.2, 0.9, d + 0.2), ForgeModels.N_CONCRETE, 0.04)
-	m.box(Vector3(0, 0.4, 0), Vector3(w, 3.0, d), wall, 0.06)
-	m.box(Vector3(0, 3.4, 0), Vector3(w + 0.8, 2.6, d + 0.9), ForgeModels.ROOF, 0.0, Vector2(1.0, 0.02))
-	m.box(Vector3(w * 0.25, 3.8, 0.8), Vector3(0.6, 2.4, 0.6), ForgeModels.N_CONCRETE, 0.03)
-	for i: int in range(3):
-		var x: float = -w * 0.32 + i * w * 0.32
-		m.box(Vector3(x, 1.4, -d * 0.5 - 0.03), Vector3(0.9, 1.1, 0.08), ForgeModels.WINDOW, 0.01)
-		m.box(Vector3(x, 1.3, -d * 0.5 - 0.06), Vector3(1.1, 0.12, 0.12), ForgeModels.BIRCH_BARK, 0.01)
-	m.box(Vector3(w * 0.5 + 0.03, 0.4, 0), Vector3(0.08, 2.1, 1.0), ForgeModels.PLANK, 0.01)
-	if variant == 1:
-		m.box(Vector3(-w * 0.5 - 1.6, -0.3, 1.0), Vector3(2.8, 2.4, 3.0), ForgeModels.PLANK, 0.05)
-		m.box(Vector3(-w * 0.5 - 1.6, 2.1, 1.0), Vector3(3.2, 0.9, 3.4), ForgeModels.N_RUST, 0.0, Vector2(1.0, 0.02))
-	return m
-
-
-## Two-storey town house (variant 2) and hip-roofed bungalow with a porch (3).
-static func town_house(variant: int) -> ForgeMesh:
-	var m: ForgeMesh = mesh()
+	var W: float = [8.6, 10.4, 9.0, 9.4][variant]
+	var D: float = [7.2, 7.4, 8.0, 8.4][variant]
+	var H: float = [3.0, 3.0, 5.8, 3.4][variant]
+	var wall: int = ForgeModels.PLANK if variant != 2 else ForgeModels.PLASTER
+	var trim: int = ForgeModels.BIRCH_BARK
+	# plinth and walls
+	m.box(Vector3(0, -0.7, 0), Vector3(W + 0.3, 1.3, D + 0.3), ForgeModels.N_CONCRETE, 0.04)
+	m.box(Vector3(0, 0.55, 0), Vector3(W, H, D), wall, 0.03)
+	# white corner boards and a skirting board
+	for cx: float in [-W * 0.5, W * 0.5]:
+		for cz: float in [-D * 0.5, D * 0.5]:
+			m.box(Vector3(cx, 0.55, cz), Vector3(0.28, H, 0.28), trim, 0.0)
+	m.box(Vector3(0, 0.55, 0), Vector3(W + 0.08, 0.22, D + 0.08), trim, 0.0)
 	if variant == 2:
-		var w: float = 8.5
-		var d: float = 7.0
-		m.box(Vector3(0, -0.6, 0), Vector3(w + 0.2, 1.0, d + 0.2), ForgeModels.N_CONCRETE, 0.04)
-		m.box(Vector3(0, 0.4, 0), Vector3(w, 5.8, d), ForgeModels.PLASTER, 0.06)
-		m.box(Vector3(0, 3.1, 0), Vector3(w + 0.1, 0.18, d + 0.1), ForgeModels.N_CONCRETE, 0.0)
-		m.box(Vector3(0, 6.2, 0), Vector3(w + 0.9, 3.2, d + 1.0), ForgeModels.ROOF, 0.0, Vector2(1.0, 0.02))
-		m.box(Vector3(-w * 0.28, 7.0, 1.2), Vector3(0.8, 3.0, 0.8), ForgeModels.N_CONCRETE, 0.03)
-		for fl: int in range(2):
-			for i: int in range(3):
-				var x: float = -w * 0.33 + i * w * 0.33
-				if fl == 0 and i == 1:
-					m.box(Vector3(x, 0.4, -d * 0.5 - 0.04), Vector3(1.1, 2.2, 0.08), ForgeModels.PLANK, 0.01)
-					m.box(Vector3(x, 2.65, -d * 0.5 - 0.6), Vector3(1.8, 0.12, 1.2), ForgeModels.N_CONCRETE, 0.01)
-					continue
-				var y: float = 1.3 + fl * 2.9
-				m.box(Vector3(x, y, -d * 0.5 - 0.03), Vector3(1.0, 1.3, 0.08), ForgeModels.WINDOW, 0.01)
-				m.box(Vector3(x, y - 0.12, -d * 0.5 - 0.07), Vector3(1.2, 0.12, 0.14), ForgeModels.BIRCH_BARK, 0.01)
-				m.box(Vector3(x, y, d * 0.5 + 0.03), Vector3(1.0, 1.3, 0.08), ForgeModels.WINDOW, 0.01)
-		for z: float in [-d * 0.2, d * 0.2]:
-			m.box(Vector3(w * 0.5 + 0.03, 4.2, z), Vector3(0.08, 1.3, 1.0), ForgeModels.WINDOW, 0.01)
+		m.box(Vector3(0, 0.55 + H * 0.5 - 0.1, 0), Vector3(W + 0.08, 0.18, D + 0.08), trim, 0.0)
+	# roof: gable (ridge along X), hip-ended for variant 3
+	var top: float = 0.55 + H
+	var rh: float = [3.0, 2.8, 2.6, 3.6][variant]
+	var ridge: Vector2 = Vector2(0.6, 0.03) if variant == 3 else Vector2(1.0, 0.03)
+	m.box(Vector3(0, top - 0.05, 0), Vector3(W + 1.2, rh, D + 1.4), ForgeModels.ROOF, 0.0, ridge)
+	# eave boards
+	m.box(Vector3(0, top - 0.25, -(D + 1.4) * 0.5), Vector3(W + 1.25, 0.22, 0.08), trim, 0.0)
+	m.box(Vector3(0, top - 0.25, (D + 1.4) * 0.5), Vector3(W + 1.25, 0.22, 0.08), trim, 0.0)
+	if variant != 3:
+		# gable-end vergeboards (as thin raked boxes)
+		for gx: float in [-(W + 1.2) * 0.5, (W + 1.2) * 0.5]:
+			m.box(Vector3(gx, top - 0.1, 0), Vector3(0.1, rh - 0.1, D + 1.45), trim, 0.0, Vector2(1.0, 0.05))
+	# chimney
+	var chx: float = W * 0.22 * (1.0 if variant % 2 == 0 else -1.0)
+	m.box(Vector3(chx, top + rh * 0.35, D * 0.12), Vector3(0.75, rh * 0.75, 0.75), ForgeModels.N_RUST, 0.02)
+	m.box(Vector3(chx, top + rh * 1.08, D * 0.12), Vector3(0.95, 0.15, 0.95), ForgeModels.N_CONCRETE, 0.01)
+	# windows: front and back, plus gable ends
+	var floors: int = 2 if variant == 2 else 1
+	var per: int = 3 if W < 9.5 else 4
+	for fl: int in range(floors):
+		var wy: float = 1.55 + fl * 2.9
+		for i: int in range(per):
+			var x: float = -W * 0.5 + W * (i + 0.5) / per
+			var door: bool = fl == 0 and i == 1
+			if door:
+				_door(m, Vector3(x, 0.55, -D * 0.5), trim)
+			else:
+				_window(m, Vector3(x, wy, -D * 0.5), -1.0, trim)
+			if not (fl == 0 and i == per - 1 and variant == 1):
+				_window(m, Vector3(x, wy, D * 0.5), 1.0, trim)
+		for zz: float in [-D * 0.22, D * 0.22]:
+			_window_side(m, Vector3(W * 0.5, wy, zz), trim)
+			_window_side(m, Vector3(-W * 0.5, wy, zz), trim)
+	if variant == 0:
+		# glazed porch with its own little gable
+		var px: float = -W * 0.18
+		m.box(Vector3(px, 0.0, -D * 0.5 - 1.4), Vector3(3.2, 0.55, 2.8), ForgeModels.N_CONCRETE, 0.03)
+		m.box(Vector3(px, 0.55, -D * 0.5 - 1.4), Vector3(3.0, 2.5, 2.6), wall, 0.03)
+		m.box(Vector3(px, 1.35, -D * 0.5 - 2.72), Vector3(2.4, 1.1, 0.06), ForgeModels.WINDOW, 0.0)
+		m.box(Vector3(px, 1.35, -D * 0.5 - 2.76), Vector3(0.08, 1.1, 0.06), trim, 0.0)
+		m.box(Vector3(px, 3.05, -D * 0.5 - 1.4), Vector3(3.5, 1.4, 3.0), ForgeModels.ROOF, 0.0, Vector2(0.03, 1.0))
+	elif variant == 1:
+		# lower side extension (sauna / store) with a lean-to roof
+		var ex: float = W * 0.5 + 2.0
+		m.box(Vector3(ex, -0.4, 0.6), Vector3(4.0, 3.1, 5.4), ForgeModels.PLANK, 0.03)
+		m.box(Vector3(ex, 2.6, 0.6), Vector3(4.5, 0.9, 6.0), ForgeModels.N_RUST, 0.0, Vector2(0.9, 1.0), Vector2(-0.2, 0.0))
+		m.box(Vector3(ex + 0.4, 0.1, 0.6 - 2.72), Vector3(1.0, 2.0, 0.06), ForgeModels.BARK, 0.0)
+		_door(m, Vector3(-W * 0.32, 0.55, -D * 0.5), trim)
+	elif variant == 2:
+		# balcony over the front door
+		m.box(Vector3(-W * 0.5 + W * 1.5 / per, 3.4, -D * 0.5 - 0.6), Vector3(2.6, 0.15, 1.2), ForgeModels.N_CONCRETE, 0.01)
+		m.box(Vector3(-W * 0.5 + W * 1.5 / per, 3.55, -D * 0.5 - 1.15), Vector3(2.6, 0.9, 0.06), trim, 0.0)
 	else:
-		var w2: float = 9.5
-		var d2: float = 8.0
-		m.box(Vector3(0, -0.6, 0), Vector3(w2 + 0.2, 1.1, d2 + 0.2), ForgeModels.N_CONCRETE, 0.04)
-		m.box(Vector3(0, 0.5, 0), Vector3(w2, 3.0, d2), ForgeModels.PLANK, 0.06)
-		m.box(Vector3(0, 3.5, 0), Vector3(w2 + 1.0, 2.8, d2 + 1.0), ForgeModels.ROOF, 0.0, Vector2(0.45, 0.04))
-		m.box(Vector3(w2 * 0.2, 4.6, -0.6), Vector3(0.7, 2.6, 0.7), ForgeModels.N_CONCRETE, 0.03)
-		# glazed porch on the street side
-		m.box(Vector3(-w2 * 0.2, 0.0, -d2 * 0.5 - 1.2), Vector3(3.6, 2.6, 2.4), ForgeModels.PLANK, 0.04)
-		m.box(Vector3(-w2 * 0.2, 0.8, -d2 * 0.5 - 2.43), Vector3(3.0, 1.2, 0.06), ForgeModels.WINDOW, 0.0)
-		m.box(Vector3(-w2 * 0.2, 2.6, -d2 * 0.5 - 1.2), Vector3(4.0, 0.7, 2.8), ForgeModels.ROOF, 0.0, Vector2(1.0, 0.3), Vector2(0, 0.9))
-		for x2: float in [w2 * 0.12, w2 * 0.34]:
-			m.box(Vector3(x2, 1.4, -d2 * 0.5 - 0.03), Vector3(1.1, 1.2, 0.08), ForgeModels.WINDOW, 0.01)
-			m.box(Vector3(x2, 1.4, d2 * 0.5 + 0.03), Vector3(1.1, 1.2, 0.08), ForgeModels.WINDOW, 0.01)
+		# dormer on the street side
+		m.box(Vector3(0, top + 0.3, -D * 0.22), Vector3(2.4, 1.6, 2.2), wall, 0.02)
+		m.box(Vector3(0, top + 1.85, -D * 0.22), Vector3(2.9, 1.0, 2.6), ForgeModels.ROOF, 0.0, Vector2(0.03, 1.0))
+		_window(m, Vector3(0, top + 1.05, -D * 0.22 - 1.1), -1.0, trim)
 	return m
+
+
+static func _window(m: ForgeMesh, c: Vector3, facing: float, trim: int) -> void:
+	var z: float = c.z + facing * 0.04
+	m.box(Vector3(c.x, c.y - 0.72, z), Vector3(1.2, 1.44, 0.1), trim, 0.0)
+	m.box(Vector3(c.x, c.y - 0.6, z + facing * 0.03), Vector3(0.95, 1.2, 0.06), ForgeModels.WINDOW, 0.0)
+	m.box(Vector3(c.x, c.y - 0.6, z + facing * 0.06), Vector3(0.07, 1.2, 0.04), trim, 0.0)
+	m.box(Vector3(c.x, c.y - 0.05, z + facing * 0.06), Vector3(0.95, 0.07, 0.04), trim, 0.0)
+	m.box(Vector3(c.x, c.y - 0.82, z + facing * 0.12), Vector3(1.35, 0.1, 0.22), trim, 0.0)
+
+
+static func _window_side(m: ForgeMesh, c: Vector3, trim: int) -> void:
+	var s: float = signf(c.x)
+	var x: float = c.x + s * 0.04
+	m.box(Vector3(x, c.y - 0.72, c.z), Vector3(0.1, 1.44, 1.2), trim, 0.0)
+	m.box(Vector3(x + s * 0.03, c.y - 0.6, c.z), Vector3(0.06, 1.2, 0.95), ForgeModels.WINDOW, 0.0)
+	m.box(Vector3(x + s * 0.06, c.y - 0.6, c.z), Vector3(0.04, 1.2, 0.07), trim, 0.0)
+
+
+static func _door(m: ForgeMesh, base: Vector3, trim: int) -> void:
+	m.box(Vector3(base.x, base.y, base.z - 0.05), Vector3(1.3, 2.35, 0.1), trim, 0.0)
+	m.box(Vector3(base.x, base.y, base.z - 0.09), Vector3(1.0, 2.15, 0.06), ForgeModels.BARK, 0.0)
+	m.box(Vector3(base.x, base.y - 0.75, base.z - 0.7), Vector3(1.8, 0.4, 1.0), ForgeModels.N_CONCRETE, 0.02)
+	m.box(Vector3(base.x, base.y - 0.4, base.z - 0.45), Vector3(1.8, 0.4, 0.5), ForgeModels.N_CONCRETE, 0.02)
+	m.box(Vector3(base.x, base.y + 2.5, base.z - 0.55), Vector3(1.8, 0.1, 1.1), ForgeModels.ROOF, 0.0)
+
+
+## Kept for the model list: variants 2 and 3 of the village house.
+static func town_house(variant: int) -> ForgeMesh:
+	return house(variant)
 
 
 ## Clipped garden hedge, 6 m along local X.

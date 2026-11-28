@@ -81,11 +81,16 @@ void fragment() {
 		if (col == 10) {
 			float r = inst.x;
 			albedo = r < 0.4 ? albedo : (r < 0.72 ? vec3(0.32, 0.33, 0.34) : vec3(0.27, 0.36, 0.3));
-		} else if (col == 11 || col == 12) {
+		} else if (col == 11) {
 			albedo *= 0.85 + inst.y * 0.3;
-			if (col == 11 && inst.z > 0.6) {
+			if (inst.z > 0.6) {
 				albedo = mix(albedo, vec3(0.62, 0.56, 0.38), 0.45);
 			}
+		} else if (col == 12) {
+			// painted board walls: falu red, ochre, pale blue-grey, cream, or tarred brown
+			float z = inst.z;
+			vec3 paint = z < 0.3 ? vec3(0.42, 0.13, 0.1) : (z < 0.5 ? vec3(0.66, 0.5, 0.24) : (z < 0.66 ? vec3(0.42, 0.5, 0.52) : (z < 0.84 ? vec3(0.72, 0.68, 0.56) : vec3(0.3, 0.22, 0.16))));
+			albedo = paint * (0.9 + inst.y * 0.2);
 		}
 	}
 	float ao = COLOR.r;
