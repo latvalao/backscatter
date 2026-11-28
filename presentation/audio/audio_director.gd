@@ -60,11 +60,13 @@ func _ready() -> void:
 func _stream(name: String, looped: bool = false) -> AudioStream:
 	if not _streams.has(name):
 		var s: AudioStreamWAV = load(SFX % name) as AudioStreamWAV
-		if s != null and looped:
+		if s != null and looped and s.loop_mode == AudioStreamWAV.LOOP_DISABLED:
+			# loops are imported as forward loops (tools/gen_sfx.py); this is a
+			# fallback. The end is in samples, not bytes: the data is compressed.
 			s = s.duplicate() as AudioStreamWAV
 			s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 			s.loop_begin = 0
-			s.loop_end = s.data.size() / 2
+			s.loop_end = int(s.get_length() * s.mix_rate)
 		_streams[name] = s
 	return _streams[name]
 
